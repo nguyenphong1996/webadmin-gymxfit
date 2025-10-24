@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* Custom CSS Variables for Theme */
+:root {
+  --primary-50: #eff6ff;
+  --primary-100: #dbeafe;
+  --primary-500: #3b82f6;
+  --primary-600: #2563eb;
+  --primary-700: #1d4ed8;
+}
+
+/* Dark mode variables */
+.dark {
+  --primary-50: #1e3a8a;
+  --primary-100: #1e40af;
+  --primary-500: #60a5fa;
+  --primary-600: #3b82f6;
+  --primary-700: #2563eb;
+}
+
+/* Custom base styles */
+* {
+  border-color: rgb(229, 231, 235);
+}
+
+.dark * {
+  border-color: rgb(75, 85, 99);
+}
+
+body {
+  background-color: rgb(249, 250, 251);
+  color: rgb(17, 24, 39);
+  transition: all 0.3s;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.dark body {
+  background-color: rgb(17, 24, 39);
+  color: rgb(243, 244, 246);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+::-webkit-scrollbar-track {
+  background-color: rgb(243, 244, 246);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: rgb(31, 41, 55);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgb(209, 213, 219);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgb(75, 85, 99);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(156, 163, 175);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(107, 114, 128);
+}
