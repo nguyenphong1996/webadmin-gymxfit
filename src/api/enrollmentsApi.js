@@ -2,13 +2,13 @@ import apiClient from './apiClient';
 
 /**
  * Enrollments API endpoints
- * Maps to backend: /api/admin/enrollments/*
+ * Maps to backend: /api/customer/enrollments/*
  */
 
 export const enrollmentsApi = {
   /**
    * Fetch all enrollments with pagination and filters
-   * GET /api/admin/enrollments
+   * GET /api/customer/enrollments
    */
   getEnrollments: async (params = {}) => {
     const {
@@ -29,79 +29,79 @@ export const enrollmentsApi = {
       ...(search && { search }),
     });
 
-    const response = await apiClient.get(`/api/admin/enrollments?${queryParams}`);
+    const response = await apiClient.get(`/api/customer/enrollments?${queryParams}`);
     return response.data;
   },
 
   /**
    * Get enrollment details by ID
-   * GET /api/admin/enrollments/{enrollmentId}
+   * GET /api/customer/enrollments/{enrollmentId}
    */
   getEnrollmentById: async (enrollmentId) => {
-    const response = await apiClient.get(`/api/admin/enrollments/${enrollmentId}`);
+    const response = await apiClient.get(`/api/customer/enrollments/${enrollmentId}`);
     return response.data;
   },
 
   /**
    * Create a new enrollment
-   * POST /api/admin/enrollments/create
+   * POST /api/customer/classes/{classId}/enroll
    */
   createEnrollment: async (enrollmentData) => {
-    const response = await apiClient.post('/api/admin/enrollments/create', enrollmentData);
+    const response = await apiClient.post('/api/customer/classes/enroll', enrollmentData);
     return response.data;
   },
 
   /**
    * Update enrollment details
-   * PATCH /api/admin/enrollments/{enrollmentId}
+   * PATCH /api/customer/enrollments/{enrollmentId}
    */
   updateEnrollment: async (enrollmentId, enrollmentData) => {
-    const response = await apiClient.patch(`/api/admin/enrollments/${enrollmentId}`, enrollmentData);
+    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}`, enrollmentData);
     return response.data;
   },
 
   /**
    * Approve enrollment
-   * PATCH /api/admin/enrollments/{enrollmentId}/approve
+   * PATCH /api/customer/enrollments/{enrollmentId}/approve
    */
   approveEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/admin/enrollments/${enrollmentId}/approve`);
+    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/approve`);
     return response.data;
   },
 
   /**
    * Reject enrollment
-   * PATCH /api/admin/enrollments/{enrollmentId}/reject
+   * PATCH /api/customer/enrollments/{enrollmentId}/reject
    */
   rejectEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/admin/enrollments/${enrollmentId}/reject`);
+    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/reject`);
     return response.data;
   },
 
   /**
    * Complete enrollment
-   * PATCH /api/admin/enrollments/{enrollmentId}/complete
+   * PATCH /api/customer/enrollments/{enrollmentId}/complete
    */
   completeEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/admin/enrollments/${enrollmentId}/complete`);
+    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/complete`);
     return response.data;
   },
 
   /**
    * Cancel enrollment
-   * PATCH /api/admin/enrollments/{enrollmentId}/cancel
+   * PATCH /api/customer/enrollments/{enrollmentId}/cancel
    */
   cancelEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/admin/enrollments/${enrollmentId}/cancel`);
+    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/cancel`);
     return response.data;
   },
 
   /**
    * Delete enrollment
-   * DELETE /api/admin/enrollments/{enrollmentId}
+   * DELETE /api/customer/enrollments/{enrollmentId}
    */
   deleteEnrollment: async (enrollmentId) => {
-    const response = await apiClient.delete(`/api/admin/enrollments/${enrollmentId}`);
+    const response = await apiClient.delete(`/api/customer/enrollments/${enrollmentId}`);
     return response.data;
   },
 };

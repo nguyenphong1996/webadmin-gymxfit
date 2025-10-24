@@ -70,8 +70,30 @@ const StaffDetailPage = () => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await apiClient.patch(`/api/admin/staff/${staffId}`, formData);
-      navigate('/staff');
+      // Check if skills were changed
+      const skillsChanged = JSON.stringify(formData.skills) !== JSON.stringify(staff.skills);
+      
+      const payload = {
+        ...formData,
+        ...(skillsChanged && { skillsApprovedByAdmin: false }), // Mark as pending if skills changed
+      };
+
+      await apiClient.patch(`/api/admin/staff/${staffId}`, payload);
+      
+      // Refresh staff data to show updated status
+      const response = await apiClient.get(`/api/admin/staff/${staffId}`);
+      const staffData = response.data?.staff || response.data?.data;
+      setStaff(staffData);
+      setFormData({
+        name: staffData.name || '',
+        email: staffData.email || '',
+        phone: staffData.phone || '',
+        skills: staffData.skills || [],
+        gender: staffData.gender || '',
+        dob: staffData.dob ? staffData.dob.split('T')[0] : '',
+        height: staffData.height || '',
+        weight: staffData.weight || '',
+      });
     } catch (err) {
       console.error('Failed to update staff:', err);
       setError('Failed to save changes');
@@ -81,11 +103,31 @@ const StaffDetailPage = () => {
   };
 
   const approveSkills = async () => {
+    if (!window.confirm('Are you sure you want to approve these skills?')) {
+      return;
+    }
+
     try {
+      setIsSaving(true);
       await apiClient.patch(`/api/admin/staff/${staffId}/skills/approve`);
-      setStaff(prev => ({ ...prev, skillsApprovedByAdmin: true }));
+      
+      // Refresh staff data
+      const response = await apiClient.get(`/api/admin/staff/${staffId}`);
+      const staffData = response.data?.staff || response.data?.data;
+      setStaff(staffData);
+      setFormData(prev => ({
+        ...prev,
+        skills: staffData.skills || [],
+      }));
+      
+      alert('Skills approved successfully!');
     } catch (err) {
       console.error('Failed to approve skills:', err);
+      const errorMsg = err.response?.data?.message || 'Failed to approve skills';
+      setError(errorMsg);
+      alert('Error: ' + errorMsg);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -168,10 +210,10 @@ const StaffDetailPage = () => {
 
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">Skills Approval</p>
-          <div className="mt-2 flex items-center justify-between">
+          <div className="mt-2 flex items-center justify-between gap-2">
             <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
               staff?.skillsApprovedByAdmin
-                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                 : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
             }`}>
               {staff?.skillsApprovedByAdmin ? 'Approved' : 'Pending'}
@@ -179,9 +221,10 @@ const StaffDetailPage = () => {
             {!staff?.skillsApprovedByAdmin && (
               <button
                 onClick={approveSkills}
-                className="text-sm text-blue-600 hover:text-blue-900 dark:text-blue-400"
+                disabled={isSaving}
+                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium disabled:opacity-50 transition-colors"
               >
-                Approve
+                {isSaving ? 'Approving...' : 'Approve'}
               </button>
             )}
           </div>
@@ -290,7 +333,14 @@ const StaffDetailPage = () => {
 
           {/* Skills */}
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Skills</label>
+            <div className="flex items-center justify-between mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Skills</label>
+              {!staff?.skillsApprovedByAdmin && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                  Pending Approval
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {SKILL_OPTIONS.map((skill) => (
                 <label key={skill} className="flex items-center">
@@ -304,6 +354,17 @@ const StaffDetailPage = () => {
                 </label>
               ))}
             </div>
+
+            {/* Show difference if skills changed and pending approval */}
+            {!staff?.skillsApprovedByAdmin && JSON.stringify(formData.skills) !== JSON.stringify(staff?.skills) && (
+              <div className="mt-4 p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-2">Skills Changed</p>
+                <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <p><strong>Current Skills:</strong> {staff?.skills?.join(', ') || 'None'}</p>
+                  <p><strong>Pending Skills:</strong> {formData.skills.join(', ') || 'None'}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -312,6 +373,36 @@ const StaffDetailPage = () => {
             </div>
           )}
         </div>
+
+        {/* Admin Actions - Skills Approval */}
+        {!staff?.skillsApprovedByAdmin && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 shadow rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-200 mb-4">
+              ⚠️ Pending Skills Approval
+            </h3>
+            <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-4">
+              This PT has made changes to their skills. Please review and approve them below.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={approveSkills}
+                disabled={isSaving}
+                className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <CheckIcon className="h-5 w-5" />
+                {isSaving ? 'Approving...' : 'Approve Skills'}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/staff')}
+                className="flex-1 px-4 py-2.5 border border-yellow-300 text-yellow-900 dark:text-yellow-200 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/50 transition-colors font-medium"
+              >
+                Review Later
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Form Actions */}
         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
