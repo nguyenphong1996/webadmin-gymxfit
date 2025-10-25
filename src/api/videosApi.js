@@ -44,11 +44,14 @@ export const videosApi = {
    * Upload a new video
    * POST /api/videos/upload
    */
-  uploadVideo: async (formData) => {
+  uploadVideo: async (formData, options = {}) => {
+    const { headers: extraHeaders, ...restOptions } = options;
     const response = await apiClient.post('/api/videos/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
+        ...extraHeaders,
       },
+      ...restOptions,
     });
     return response.data;
   },

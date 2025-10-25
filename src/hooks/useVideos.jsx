@@ -25,7 +25,13 @@ export const useUploadVideo = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: videosApi.uploadVideo,
+    mutationFn: ({ formData, onUploadProgress } = {}) => {
+      if (!(formData instanceof FormData)) {
+        throw new Error('formData is required to upload video.');
+      }
+
+      return videosApi.uploadVideo(formData, { onUploadProgress });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['videos'] });
     },
