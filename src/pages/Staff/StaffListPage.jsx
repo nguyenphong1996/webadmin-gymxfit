@@ -2,19 +2,31 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFetchStaff } from '../../hooks/useFetchStaff';
 import { PlusIcon, PencilSquareIcon, TrashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import apiClient from '../../api/apiClient';
 
 const StaffListPage = () => {
-  const { data: staffResponse, isLoading, error } = useFetchStaff();
+  const { data: staffResponse, isLoading, error, refetch } = useFetchStaff();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterApproval, setFilterApproval] = useState('all'); // all, pending, approved
+  const [approvingId, setApprovingId] = useState(null);
+  const [approveError, setApproveError] = useState(null);
 
   const staffList = staffResponse?.data || [];
 
-  // Filter staff based on search term
-  const filteredStaff = staffList.filter(staff =>
-    staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staff.phone.includes(searchTerm) ||
-    staff.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter staff based on search term and approval status
+  const filteredStaff = staffList.filter(staff => {
+    const matchesSearch = 
+      staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      staff.phone.includes(searchTerm) ||
+      staff.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesApproval = 
+      filterApproval === 'all' ||
+      (filterApproval === 'pending' && !staff.skillsApprovedByAdmin) ||
+      (filterApproval === 'approved' && staff.skillsApprovedByAdmin);
+
+    return matchesSearch && matchesApproval;
+  });
 
   const getSkillsBadges = (skills) => {
     return skills.map((skill) => (
@@ -47,6 +59,30 @@ const StaffListPage = () => {
         Approved
       </span>
     );
+  };
+
+  const handleQuickApprove = async (staffId, staffName) => {
+    if (!window.confirm(`Approve skills for ${staffName}?`)) {
+      return;
+    }
+
+    try {
+      setApprovingId(staffId);
+      setApproveError(null);
+      
+      await apiClient.patch(`/api/admin/staff/${staffId}/skills/approve`);
+      
+      // Refresh data
+      refetch();
+      alert('Skills approved successfully!');
+    } catch (err) {
+      console.error('Failed to approve skills:', err);
+      const errorMsg = err.response?.data?.message || 'Failed to approve skills';
+      setApproveError(errorMsg);
+      alert('Error: ' + errorMsg);
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   if (isLoading) {
@@ -84,15 +120,52 @@ const StaffListPage = () => {
         </Link>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
-        <input
-          type="text"
-          placeholder="Search by name, phone, or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-        />
+      {/* Search Bar and Filters */}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 space-y-4">
+        <div>
+          <input
+            type="text"
+            placeholder="Search by name, phone, or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          />
+        </div>
+
+        {/* Skills Approval Filter */}
+        <div className="flex gap-2 items-center flex-wrap">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Skills:</span>
+          <button
+            onClick={() => setFilterApproval('all')}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              filterApproval === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+            }`}
+          >
+            All ({staffList.length})
+          </button>
+          <button
+            onClick={() => setFilterApproval('pending')}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              filterApproval === 'pending'
+                ? 'bg-yellow-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+            }`}
+          >
+            Pending Approval ({staffList.filter(s => !s.skillsApprovedByAdmin).length})
+          </button>
+          <button
+            onClick={() => setFilterApproval('approved')}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              filterApproval === 'approved'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+            }`}
+          >
+            Approved ({staffList.filter(s => s.skillsApprovedByAdmin).length})
+          </button>
+        </div>
       </div>
 
       {/* Staff Table */}
@@ -150,6 +223,26 @@ const StaffListPage = () => {
                       {getStatusBadge(staff)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      {!staff.skillsApprovedByAdmin && staff.isActive && (
+                        <button
+                          onClick={() => handleQuickApprove(staff._id, staff.name)}
+                          disabled={approvingId === staff._id}
+                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 inline-flex items-center gap-1 disabled:opacity-50 transition-colors"
+                          title="Approve Skills"
+                        >
+                          {approvingId === staff._id ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-green-600 border-t-transparent"></div>
+                              Approving...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircleIcon className="h-4 w-4" />
+                              Approve
+                            </>
+                          )}
+                        </button>
+                      )}
                       <Link
                         to={`/staff/${staff._id}`}
                         className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center gap-1"

@@ -16,6 +16,7 @@ import ClassCreatePage from './pages/Classes/ClassCreatePage';
 import ClassEditPage from './pages/Classes/ClassEditPage';
 import StaffListPage from './pages/Staff/StaffListPage';
 import StaffDetailPage from './pages/Staff/StaffDetailPage';
+import StaffCreatePage from './pages/Staff/StaffCreatePage';
 import EnrollmentsListPage from './pages/Enrollments/EnrollmentsListPage';
 import EnrollmentDetailPage from './pages/Enrollments/EnrollmentDetailPage';
 
@@ -64,6 +65,7 @@ function App() {
 
                   {/* Staff Routes */}
                   <Route path="staff" element={<StaffListPage />} />
+                  <Route path="staff/create" element={<StaffCreatePage />} />
                   <Route path="staff/:staffId" element={<StaffDetailPage />} />
 
                   {/* Enrollments Routes */}
