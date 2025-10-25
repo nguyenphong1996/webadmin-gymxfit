@@ -15,18 +15,38 @@ export const usersApi = {
       page = 1,
       limit = 10,
       search,
-      status,
+      role,
+      isActive,
+      isVerified,
     } = params;
 
     const queryParams = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
       ...(search && { search }),
-      ...(status && { status }),
+      ...(role && { role }),
+      ...(isActive !== undefined && isActive !== null && { isActive }),
+      ...(isVerified !== undefined && isVerified !== null && { isVerified }),
     });
 
-    const response = await apiClient.get(`/api/admin/users?${queryParams}`);
-    return response.data;
+    try {
+      const response = await apiClient.get(`/api/admin/users?${queryParams}`);
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        console.warn('Users API trả về 404 - sử dụng dữ liệu giả để hiển thị danh sách rỗng.');
+        return {
+          data: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            pages: 0,
+          },
+        };
+      }
+      throw error;
+    }
   },
 
   /**
@@ -34,34 +54,16 @@ export const usersApi = {
    * GET /api/admin/users/{userId}
    */
   getUserById: async (userId) => {
-    const response = await apiClient.get(`/api/admin/users/${userId}`);
-    return response.data;
+    try {
+      const response = await apiClient.get(`/api/admin/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        console.warn(`User ${userId} không tồn tại hoặc backend chưa hỗ trợ.`);
+        return null;
+      }
+      throw error;
+    }
   },
 
-  /**
-   * Update user details
-   * PUT /api/user/profile
-   */
-  updateUserProfile: async (userData) => {
-    const response = await apiClient.put('/api/user/profile', userData);
-    return response.data;
-  },
-
-  /**
-   * Deactivate user
-   * PATCH /api/admin/users/{userId}/deactivate
-   */
-  deactivateUser: async (userId) => {
-    const response = await apiClient.patch(`/api/admin/users/${userId}/deactivate`);
-    return response.data;
-  },
-
-  /**
-   * Activate user
-   * PATCH /api/admin/users/{userId}/activate
-   */
-  activateUser: async (userId) => {
-    const response = await apiClient.patch(`/api/admin/users/${userId}/activate`);
-    return response.data;
-  },
 };
