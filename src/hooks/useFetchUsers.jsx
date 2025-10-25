@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { usersApi } from '../api/usersApi';
 
 /**
@@ -21,47 +21,5 @@ export const useFetchUser = (userId) => {
     queryFn: () => usersApi.getUserById(userId),
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
-  });
-};
-
-/**
- * Update user profile mutation
- */
-export const useUpdateUserProfile = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (userData) => usersApi.updateUserProfile(userData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
-};
-
-/**
- * Deactivate user mutation
- */
-export const useDeactivateUser = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (userId) => usersApi.deactivateUser(userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
-};
-
-/**
- * Activate user mutation
- */
-export const useActivateUser = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (userId) => usersApi.activateUser(userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
   });
 };
