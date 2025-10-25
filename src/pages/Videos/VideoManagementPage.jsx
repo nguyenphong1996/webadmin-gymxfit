@@ -267,6 +267,9 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
   const [form, setForm] = useState(initialForm);
   const [localError, setLocalError] = useState('');
   const uploadMutation = useUploadVideo();
+  const { reset: resetUploadMutation } = uploadMutation;
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const isSubmittingRef = React.useRef(false);
 
   const { data: subData } = useFetchVideoSubcategories(form.category, {
     enabled: isOpen && !!form.category,
@@ -282,9 +285,11 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
         category: prev.category || 'workout',
       }));
       setLocalError('');
-      uploadMutation.reset();
+      resetUploadMutation();
+      setUploadProgress(0);
+      isSubmittingRef.current = false;
     }
-  }, [isOpen, initialForm, uploadMutation]);
+  }, [isOpen, initialForm, resetUploadMutation]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -307,16 +312,45 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
+  const handleEstimatedCaloriesChange = (event) => {
+    const rawValue = event.target.value;
+    const sanitizedValue = rawValue.replace(/\D/g, '');
+
+    setForm((prev) => ({
+      ...prev,
+      estimatedCalories: sanitizedValue,
+    }));
+
+    if (localError) {
+      setLocalError('');
+    }
+  };
+
+  const handleUploadProgress = (event) => {
+    if (!event.total) {
+      setUploadProgress((prev) => (prev >= 90 ? prev : Math.min(prev + 10, 90)));
+      return;
+    }
+
+    const percent = Math.round((event.loaded / event.total) * 100);
+    setUploadProgress(Math.min(100, Math.max(percent, 1)));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (isSubmittingRef.current || uploadMutation.isLoading) {
+      return;
+    }
 
     if (!form.title.trim()) {
       setLocalError('Vui lòng nhập tiêu đề video.');
       return;
     }
 
-    if (!form.estimatedCalories || Number(form.estimatedCalories) <= 0) {
-      setLocalError('Calories ước tính phải lớn hơn 0.');
+    const parsedCalories = Number(form.estimatedCalories);
+    if (!form.estimatedCalories || Number.isNaN(parsedCalories) || parsedCalories <= 0) {
+      setLocalError('Calories ước tính phải là số lớn hơn 0.');
       return;
     }
 
@@ -332,13 +366,19 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
 
     const payload = new FormData();
     payload.append('title', form.title.trim());
-    payload.append('estimated_calories', form.estimatedCalories);
+    payload.append('estimated_calories', String(parsedCalories));
     payload.append('category', form.category);
     payload.append('subcategory', form.subcategory);
     payload.append('video', form.file);
 
     try {
-      await uploadMutation.mutateAsync(payload);
+      isSubmittingRef.current = true;
+      setUploadProgress(0);
+      await uploadMutation.mutateAsync({
+        formData: payload,
+        onUploadProgress: handleUploadProgress,
+      });
+      setUploadProgress(100);
       onSuccess?.('Upload video thành công.');
       onClose();
     } catch (error) {
@@ -348,8 +388,22 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
         error?.message ||
         'Không thể upload video. Vui lòng thử lại.';
       setLocalError(message);
+      setUploadProgress(0);
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
+
+  const isUploading = uploadMutation.isLoading;
+  const showProgress = isUploading || uploadProgress > 0;
+  const progressValue = showProgress
+    ? Math.min(100, Math.max(uploadProgress > 0 ? uploadProgress : 5, 0))
+    : 0;
+  const progressLabel = uploadProgress > 0 ? `${uploadProgress}%` : 'Đang khởi tạo...';
+  const progressSubtext =
+    uploadProgress >= 100
+      ? 'Đang xử lý và lưu video...'
+      : 'Vui lòng giữ cửa sổ này mở cho tới khi hoàn tất.';
 
   if (!isOpen) {
     return null;
@@ -383,6 +437,35 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
             )}
 
+            {showProgress && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-4 shadow-sm dark:border-blue-900/40 dark:bg-blue-900/20">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-blue-500">
+                    <ArrowUpTrayIcon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      <span>Đang tải video lên</span>
+                      <span>{progressLabel}</span>
+                    </div>
+                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-blue-900/40">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all duration-200 ease-out dark:bg-blue-400"
+                        style={{ width: `${progressValue}%` }}
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.min(100, Math.max(progressValue, 0))}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-blue-800/80 dark:text-blue-200/70">
+                      {progressSubtext}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -404,8 +487,10 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
                 <input
                   type="number"
                   min="1"
+                  inputMode="numeric"
+                  step="1"
                   value={form.estimatedCalories}
-                  onChange={(event) => handleChange('estimatedCalories', event.target.value)}
+                  onChange={handleEstimatedCaloriesChange}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Ví dụ: 320"
                 />
