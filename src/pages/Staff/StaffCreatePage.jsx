@@ -2,8 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { staffApi } from '../../api/staffApi';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { CATEGORY_OPTIONS } from '../../constants/categories';
 
-const SKILLS_OPTIONS = ['yoga', 'cardio', 'stretching', 'nutrition', 'weightlifting', 'pilates'];
+const SKILL_OPTIONS = Object.entries(CATEGORY_OPTIONS).map(([value, { label }]) => ({
+  value,
+  label,
+}));
 const GENDER_OPTIONS = ['male', 'female', 'other'];
 
 const StaffCreatePage = () => {
@@ -241,16 +245,16 @@ const StaffCreatePage = () => {
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Skills *</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            {SKILLS_OPTIONS.map(skill => (
-              <label key={skill} className="flex items-center gap-2 cursor-pointer">
+            {SKILL_OPTIONS.map(({ value, label }) => (
+              <label key={value} className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.skills.includes(skill)}
-                  onChange={() => handleSkillToggle(skill)}
+                  checked={formData.skills.includes(value)}
+                  onChange={() => handleSkillToggle(value)}
                   className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
                 />
                 <span className="text-gray-700 dark:text-gray-300 font-medium">
-                  {skill.charAt(0).toUpperCase() + skill.slice(1)}
+                  {label}
                 </span>
               </label>
             ))}
