@@ -6,8 +6,8 @@ const TopBar = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800">
-      <div className="max-w-full px-4 sm:px-6 lg:px-8">
+    <header className="w-full sticky top-0 z-30 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Mobile menu button */}
           <div className="flex items-center lg:hidden">

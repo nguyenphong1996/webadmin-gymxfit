@@ -14,11 +14,17 @@ export const videosApi = {
     const {
       page = 1,
       limit = 10,
+      category,
+      subcategory,
+      search,
     } = params;
 
     const queryParams = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
+      ...(category && { category }),
+      ...(subcategory && { subcategory }),
+      ...(search && { search }),
     });
 
     const response = await apiClient.get(`/api/videos?${queryParams}`);
@@ -53,6 +59,15 @@ export const videosApi = {
    */
   deleteVideo: async (videoId) => {
     const response = await apiClient.delete(`/api/videos/${videoId}`);
+    return response.data;
+  },
+
+  /**
+   * Get subcategories by category
+   * GET /api/videos/subcategories/:category
+   */
+  getSubcategories: async (category) => {
+    const response = await apiClient.get(`/api/videos/subcategories/${category}`);
     return response.data;
   },
 };
