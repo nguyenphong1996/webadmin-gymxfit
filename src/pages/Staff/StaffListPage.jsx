@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { useFetchStaff } from '../../hooks/useFetchStaff';
 import { PlusIcon, PencilSquareIcon, TrashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import apiClient from '../../api/apiClient';
+import { CATEGORY_OPTIONS } from '../../constants/categories';
+
+const getSkillLabel = (skill) => CATEGORY_OPTIONS[skill]?.label || skill;
 
 const StaffListPage = () => {
   const { data: staffResponse, isLoading, error, refetch } = useFetchStaff();
@@ -34,7 +37,7 @@ const StaffListPage = () => {
         key={skill}
         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
       >
-        {skill}
+        {getSkillLabel(skill)}
       </span>
     ));
   };

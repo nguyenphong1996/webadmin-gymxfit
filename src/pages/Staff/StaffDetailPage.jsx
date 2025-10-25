@@ -2,8 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeftIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import apiClient from '../../api/apiClient';
+import { CATEGORY_OPTIONS } from '../../constants/categories';
 
-const SKILL_OPTIONS = ['yoga', 'cardio', 'stretching', 'nutrition', 'workout', 'pilates', 'boxing', 'dance'];
+const SKILL_OPTIONS = Object.entries(CATEGORY_OPTIONS).map(([value, { label }]) => ({
+  value,
+  label,
+}));
+
+const getSkillLabel = (skill) => CATEGORY_OPTIONS[skill]?.label || skill;
+const formatSkillsList = (skills = []) =>
+  skills.length > 0 ? skills.map(getSkillLabel).join(', ') : 'None';
 
 const StaffDetailPage = () => {
   const { staffId } = useParams();
@@ -342,15 +350,15 @@ const StaffDetailPage = () => {
               )}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {SKILL_OPTIONS.map((skill) => (
-                <label key={skill} className="flex items-center">
+              {SKILL_OPTIONS.map(({ value, label }) => (
+                <label key={value} className="flex items-center">
                   <input
                     type="checkbox"
-                    checked={formData.skills.includes(skill)}
-                    onChange={() => handleSkillToggle(skill)}
+                    checked={formData.skills.includes(value)}
+                    onChange={() => handleSkillToggle(value)}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300 capitalize">{skill}</span>
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{label}</span>
                 </label>
               ))}
             </div>
@@ -360,8 +368,8 @@ const StaffDetailPage = () => {
               <div className="mt-4 p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-2">Skills Changed</p>
                 <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                  <p><strong>Current Skills:</strong> {staff?.skills?.join(', ') || 'None'}</p>
-                  <p><strong>Pending Skills:</strong> {formData.skills.join(', ') || 'None'}</p>
+                  <p><strong>Current Skills:</strong> {formatSkillsList(staff?.skills)}</p>
+                  <p><strong>Pending Skills:</strong> {formatSkillsList(formData.skills)}</p>
                 </div>
               </div>
             )}
