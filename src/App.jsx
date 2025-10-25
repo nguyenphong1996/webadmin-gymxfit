@@ -19,6 +19,7 @@ import StaffDetailPage from './pages/Staff/StaffDetailPage';
 import StaffCreatePage from './pages/Staff/StaffCreatePage';
 import EnrollmentsListPage from './pages/Enrollments/EnrollmentsListPage';
 import EnrollmentDetailPage from './pages/Enrollments/EnrollmentDetailPage';
+import VideoManagementPage from './pages/Videos/VideoManagementPage';
 
 // Create a React Query client
 const queryClient = new QueryClient({
@@ -74,12 +75,7 @@ function App() {
 
                   {/* Placeholder routes - to be implemented */}
 
-                  <Route path="videos" element={
-                    <div className="p-6">
-                      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Videos</h1>
-                      <p className="mt-2 text-gray-600 dark:text-gray-400">Video management coming soon...</p>
-                    </div>
-                  } />
+                  <Route path="videos" element={<VideoManagementPage />} />
 
                   <Route path="users" element={
                     <div className="p-6">
