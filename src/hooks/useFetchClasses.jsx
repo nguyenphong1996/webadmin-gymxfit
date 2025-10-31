@@ -119,3 +119,56 @@ export const useCloseClass = () => {
     },
   });
 };
+
+// Hook to fetch QR code for a class
+export const useClassQRCode = (classId, options = {}) => {
+  const { enabled = true } = options;
+
+  return useQuery({
+    queryKey: ['class-qrcode', classId],
+    queryFn: async () => {
+      try {
+        return await classesApi.getClassQRCode(classId);
+      } catch (error) {
+        const status = error?.response?.status;
+        if (status === 400 || status === 404) {
+          return {
+            success: false,
+            message: error?.response?.data?.message || 'QR code not generated for this class',
+            data: null,
+            status,
+          };
+        }
+        throw error;
+      }
+    },
+    enabled: Boolean(classId) && enabled,
+    staleTime: 1000 * 60 * 5,
+    retry: (failureCount, error) => {
+      const status = error?.response?.status;
+      if (status === 400 || status === 404) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+  });
+};
+
+// Hook to generate QR code for a class
+export const useGenerateClassQRCode = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (classId) => classesApi.generateClassQRCode(classId),
+    onSuccess: (data, classId) => {
+      if (classId) {
+        queryClient.invalidateQueries(['class', classId]);
+        queryClient.invalidateQueries(['class-qrcode', classId]);
+      }
+      return data;
+    },
+    onError: (error) => {
+      console.error('Error generating class QR code:', error);
+    },
+  });
+};

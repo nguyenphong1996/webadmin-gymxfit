@@ -5,6 +5,11 @@ import { Bars3Icon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outlin
 const TopBar = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
 
+  const displayName = user?.name || user?.phone || 'User';
+  const displayRole = user?.role || 'admin';
+  const avatarUrl = user?.avatar?.url || user?.avatarUrl || (typeof user?.avatar === 'string' ? user.avatar : null);
+  const avatarFallback = (displayName || 'A').charAt(0).toUpperCase();
+
   return (
     <header className="w-full sticky top-0 z-30 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,16 +37,20 @@ const TopBar = ({ onMenuClick }) => {
             <div className="flex items-center space-x-3 border-r border-gray-200 dark:border-gray-700 pr-6">
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {user?.name || user?.phone || 'User'}
+                  {displayName}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                  {user?.role || 'admin'}
+                  {displayRole}
                 </div>
               </div>
 
               {/* Avatar */}
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-md">
-                {(user?.name || user?.phone || 'A').charAt(0).toUpperCase()}
+              <div className="h-10 w-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-md">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+                ) : (
+                  avatarFallback
+                )}
               </div>
             </div>
 
