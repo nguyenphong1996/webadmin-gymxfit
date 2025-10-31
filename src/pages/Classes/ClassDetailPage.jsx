@@ -35,6 +35,14 @@ const ClassDetailPage = () => {
   const closeClassMutation = useCloseClass();
   const [qrFeedback, setQrFeedback] = useState(null);
   const [actionFeedback, setActionFeedback] = useState(null);
+  const classItem = classData?.data;
+
+  React.useEffect(() => {
+    if (!classItem?.status) {
+      return;
+    }
+    setActionFeedback(null);
+  }, [classItem?.status]);
 
   if (isLoading) {
     return (
@@ -69,7 +77,6 @@ const ClassDetailPage = () => {
     );
   }
 
-  const classItem = classData.data;
   const classIdFromData = classItem?._id || classItem?.id;
   const resolvedClassId = classIdFromData || id;
   const qrCodeInfo = qrCodeData?.data?.qrCode || classItem.qrCode;
@@ -80,10 +87,6 @@ const ClassDetailPage = () => {
   const isGeneratingQRCode = generateQRCodeMutation.isPending;
   const isOpeningClass = openClassMutation.isPending;
   const isClosingClass = closeClassMutation.isPending;
-
-  React.useEffect(() => {
-    setActionFeedback(null);
-  }, [classItem.status]);
 
   const handleGenerateQRCode = async () => {
     const targetClassId = resolvedClassId;

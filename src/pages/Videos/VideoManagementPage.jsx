@@ -20,6 +20,8 @@ import {
   useDeleteVideo,
 } from '../../hooks/useVideos';
 
+const MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024;
+
 const formatDuration = (seconds) => {
   if (!seconds && seconds !== 0) return '00:00';
   const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -34,6 +36,24 @@ const formatDuration = (seconds) => {
   ].filter(Boolean);
 
   return segments.join(':');
+};
+
+const formatFileSize = (bytes) => {
+  if (typeof bytes !== 'number' || Number.isNaN(bytes)) {
+    return '';
+  }
+
+  const megabytes = bytes / (1024 * 1024);
+  if (megabytes >= 1) {
+    return `${megabytes.toFixed(2)} MB`;
+  }
+
+  const kilobytes = bytes / 1024;
+  if (kilobytes >= 1) {
+    return `${kilobytes.toFixed(1)} KB`;
+  }
+
+  return `${bytes} B`;
 };
 
 const categoryOptions = Object.entries(CATEGORY_OPTIONS).map(([value, { label }]) => ({
@@ -270,6 +290,7 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
   const { reset: resetUploadMutation } = uploadMutation;
   const [uploadProgress, setUploadProgress] = useState(0);
   const isSubmittingRef = React.useRef(false);
+  const [uploadPhase, setUploadPhase] = useState('idle');
 
   const { data: subData } = useFetchVideoSubcategories(form.category, {
     enabled: isOpen && !!form.category,
@@ -288,6 +309,7 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
       resetUploadMutation();
       setUploadProgress(0);
       isSubmittingRef.current = false;
+      setUploadPhase('idle');
     }
   }, [isOpen, initialForm, resetUploadMutation]);
 
@@ -300,13 +322,33 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
     if (!subcategories.includes(form.subcategory)) {
       setForm((prev) => ({ ...prev, subcategory: subcategories[0] }));
     }
-  }, [form.category, subcategories, isOpen]);
+  }, [form.category, form.subcategory, subcategories, isOpen]);
 
   const handleChange = (name, value) => {
     setForm((prev) => ({
       ...prev,
       [name]: value,
     }));
+    if (localError) {
+      setLocalError('');
+    }
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0] ?? null;
+
+    if (!file) {
+      setForm((prev) => ({ ...prev, file: null }));
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      setLocalError('Video vượt quá 100MB. Vui lòng chọn file nhỏ hơn.');
+      setForm((prev) => ({ ...prev, file: null }));
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, file }));
     if (localError) {
       setLocalError('');
     }
@@ -329,11 +371,13 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
   const handleUploadProgress = (event) => {
     if (!event.total) {
       setUploadProgress((prev) => (prev >= 90 ? prev : Math.min(prev + 10, 90)));
+      setUploadPhase((prev) => (prev === 'processing' ? prev : 'uploading'));
       return;
     }
 
     const percent = Math.round((event.loaded / event.total) * 100);
     setUploadProgress(Math.min(100, Math.max(percent, 1)));
+    setUploadPhase(percent >= 100 ? 'processing' : 'uploading');
   };
 
   const handleSubmit = async (event) => {
@@ -364,6 +408,11 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
       return;
     }
 
+    if (form.file.size > MAX_VIDEO_SIZE_BYTES) {
+      setLocalError('Video vượt quá 100MB. Vui lòng chọn file nhỏ hơn.');
+      return;
+    }
+
     const payload = new FormData();
     payload.append('title', form.title.trim());
     payload.append('estimated_calories', String(parsedCalories));
@@ -374,35 +423,59 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       isSubmittingRef.current = true;
       setUploadProgress(0);
-      await uploadMutation.mutateAsync({
+      setUploadPhase('uploading');
+      const result = await uploadMutation.mutateAsync({
         formData: payload,
         onUploadProgress: handleUploadProgress,
       });
       setUploadProgress(100);
-      onSuccess?.('Upload video thành công.');
+      setUploadPhase('processing');
+      const uploadedBytesRaw = result?.video?.bytes ?? result?.bytes;
+      const uploadedBytes = Number(uploadedBytesRaw);
+      const hasUploadedBytes = Number.isFinite(uploadedBytes) && uploadedBytes > 0;
+      const sizeText = hasUploadedBytes ? formatFileSize(uploadedBytes) : '';
+      if (hasUploadedBytes) {
+        console.info(`[Video Upload] ${form.title.trim()} (${sizeText})`);
+      }
+      onSuccess?.(
+        sizeText ? `Upload video thành công (${sizeText}).` : 'Upload video thành công.'
+      );
       onClose();
     } catch (error) {
+      setUploadPhase('idle');
       const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        'Không thể upload video. Vui lòng thử lại.';
+        error?.response?.status === 413 ||
+        error?.response?.data?.error === 'VIDEO_SIZE_EXCEEDED' ||
+        error?.response?.data?.message?.includes('Maximum allowed size')
+          ? 'Video vượt quá 100MB. Vui lòng chọn file nhỏ hơn.'
+          : error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            error?.message ||
+            'Không thể upload video. Vui lòng thử lại.';
       setLocalError(message);
       setUploadProgress(0);
     } finally {
       isSubmittingRef.current = false;
+      setUploadPhase((prev) => (prev === 'processing' ? 'idle' : prev));
     }
   };
 
   const isUploading = uploadMutation.isLoading;
-  const showProgress = isUploading || uploadProgress > 0;
+  const showProgress = isUploading || uploadProgress > 0 || uploadPhase === 'processing';
   const progressValue = showProgress
-    ? Math.min(100, Math.max(uploadProgress > 0 ? uploadProgress : 5, 0))
+    ? uploadPhase === 'processing'
+      ? 100
+      : Math.min(100, Math.max(uploadProgress > 0 ? uploadProgress : 5, 0))
     : 0;
-  const progressLabel = uploadProgress > 0 ? `${uploadProgress}%` : 'Đang khởi tạo...';
+  const progressLabel =
+    uploadPhase === 'processing'
+      ? 'Đang xử lý lại...'
+      : uploadProgress > 0
+        ? `${uploadProgress}%`
+        : 'Đang khởi tạo...';
   const progressSubtext =
-    uploadProgress >= 100
-      ? 'Đang xử lý và lưu video...'
+    uploadPhase === 'processing'
+      ? 'Hệ thống sẽ tự retry nếu cần. Vui lòng giữ cửa sổ này mở cho tới khi hoàn tất.'
       : 'Vui lòng giữ cửa sổ này mở cho tới khi hoàn tất.';
 
   if (!isOpen) {
@@ -546,17 +619,17 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
                   Click để chọn hoặc kéo thả file
                 </span>
                 <span className="text-xs text-gray-400 mt-2">
-                  Chấp nhận: MP4, MOV, WEBM. Dung lượng tối đa 2GB.
+                  Chấp nhận: MP4, MOV, WEBM. Dung lượng tối đa 100MB.
                 </span>
                 <input
                   type="file"
                   accept="video/mp4,video/mpeg,video/quicktime,video/webm"
-                  onChange={(event) => handleChange('file', event.target.files?.[0] ?? null)}
+                  onChange={handleFileChange}
                   className="hidden"
                 />
                 {form.file && (
                   <span className="mt-3 text-sm text-blue-600 dark:text-blue-300">
-                    Đã chọn: {form.file.name}
+                    Đã chọn: {form.file.name} · {formatFileSize(form.file.size)}
                   </span>
                 )}
               </label>
@@ -632,8 +705,11 @@ const VideoManagementPage = () => {
     }
 
     try {
-      await deleteMutation.mutateAsync(video.id);
-      setFeedback({ type: 'success', message: 'Đã xoá video thành công.' });
+      const result = await deleteMutation.mutateAsync(video.id);
+      const successMessage = result?.alreadyRemoved
+        ? 'Video đã được xoá trước đó.'
+        : 'Đã xoá video thành công.';
+      setFeedback({ type: 'success', message: successMessage });
     } catch (mutationError) {
       const message =
         mutationError?.response?.data?.message ||

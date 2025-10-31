@@ -35,8 +35,19 @@ export const videosApi = {
    * Get video details by ID
    * GET /api/videos/:id
    */
-  getVideoById: async (videoId) => {
-    const response = await apiClient.get(`/api/videos/${videoId}`);
+  getVideoById: async (videoId, params = {}) => {
+    const queryParams = new URLSearchParams(
+      Object.entries(params).reduce((acc, [key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          acc[key] = value;
+        }
+        return acc;
+      }, {})
+    );
+
+    const search = queryParams.toString();
+    const url = search ? `/api/videos/${videoId}?${search}` : `/api/videos/${videoId}`;
+    const response = await apiClient.get(url);
     return response.data;
   },
 
@@ -61,8 +72,28 @@ export const videosApi = {
    * DELETE /api/videos/:id
    */
   deleteVideo: async (videoId) => {
-    const response = await apiClient.delete(`/api/videos/${videoId}`);
-    return response.data;
+    try {
+      const response = await apiClient.delete(`/api/videos/${videoId}`);
+      return response.data;
+    } catch (error) {
+      const status = error?.response?.status;
+      const message = error?.response?.data?.message;
+      const resultFlag = error?.response?.data?.result;
+
+      if (
+        status === 404 ||
+        message === 'Video not found' ||
+        resultFlag === 'not found'
+      ) {
+        return {
+          success: true,
+          message: 'Video đã được xoá trước đó.',
+          alreadyRemoved: true,
+        };
+      }
+
+      throw error;
+    }
   },
 
   /**

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { enrollmentsApi } from '../api/enrollmentsApi';
+import { classesApi } from '../api/classesApi';
 
 // Custom hook to fetch enrollments with React Query
 export const useFetchEnrollments = (params = {}) => {
@@ -18,6 +19,39 @@ export const useFetchEnrollments = (params = {}) => {
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1,
     enabled: true,
+  });
+};
+
+// Hook to fetch enrollments for a specific class (admin)
+export const useFetchClassEnrollments = ({ classId, page = 1, limit = 10, status } = {}) => {
+  return useQuery({
+    queryKey: ['class-enrollments', { classId, page, limit, status }],
+    queryFn: async () => {
+      try {
+        return await classesApi.getClassEnrollments(classId, { page, limit, status });
+      } catch (error) {
+        const statusCode = error?.response?.status;
+        if (statusCode === 404) {
+          return {
+            success: false,
+            message: error?.response?.data?.message || 'Class not found',
+            data: null,
+            pagination: null,
+            status: statusCode,
+          };
+        }
+        throw error;
+      }
+    },
+    enabled: Boolean(classId),
+    staleTime: 1000 * 60 * 5,
+    retry: (failureCount, error) => {
+      const statusCode = error?.response?.status;
+      if (statusCode === 404) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 };
 
