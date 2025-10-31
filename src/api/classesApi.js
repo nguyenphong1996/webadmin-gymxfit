@@ -97,6 +97,15 @@ export const classesApi = {
   },
 
   /**
+   * Generate class QR code for check-in/out
+   * POST /api/admin/classes/{classId}/qrcode
+   */
+  generateClassQRCode: async (classId) => {
+    const response = await apiClient.post(`/api/admin/classes/${classId}/qrcode`);
+    return response.data;
+  },
+
+  /**
    * Get class enrollments
    * GET /api/admin/classes/{classId}/enrollments
    */
