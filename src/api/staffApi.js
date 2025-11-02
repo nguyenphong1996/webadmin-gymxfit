@@ -48,6 +48,29 @@ export const staffApi = {
   },
 
   /**
+   * Upload or update staff avatar
+   * PUT /api/admin/staff/{staffId}/avatar
+   */
+  updateStaffAvatar: async (staffId, avatarFile) => {
+    if (!staffId) {
+      throw new Error('staffId is required to update avatar.');
+    }
+    if (!avatarFile) {
+      throw new Error('avatarFile is required to update avatar.');
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', avatarFile);
+
+    const response = await apiClient.put(`/api/admin/staff/${staffId}/avatar`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
    * Update staff details
    * PATCH /api/admin/staff/{staffId}
    */
@@ -80,15 +103,6 @@ export const staffApi = {
    */
   approveStaffSkills: async (staffId) => {
     const response = await apiClient.patch(`/api/admin/staff/${staffId}/skills/approve`);
-    return response.data;
-  },
-
-  /**
-   * Delete staff member
-   * DELETE /api/admin/staff/{staffId}
-   */
-  deleteStaff: async (staffId) => {
-    const response = await apiClient.delete(`/api/admin/staff/${staffId}`);
     return response.data;
   },
 };

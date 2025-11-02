@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useFetchClasses, useDeleteClass, useOpenClass, useCloseClass } from '../../hooks/useFetchClasses';
+import { useFetchClasses, useOpenClass, useCloseClass } from '../../hooks/useFetchClasses';
 import TableWithActions from '../../components/common/TableWithActions';
 import {
   PlusIcon,
   EyeIcon,
   PencilIcon,
-  TrashIcon,
   PlayIcon,
   StopIcon,
 } from '@heroicons/react/24/outline';
@@ -27,7 +26,6 @@ const ClassesListPage = () => {
     refetch,
   } = useFetchClasses(filters);
 
-  const deleteClassMutation = useDeleteClass();
   const openClassMutation = useOpenClass();
   const closeClassMutation = useCloseClass();
 
@@ -117,6 +115,7 @@ const ClassesListPage = () => {
           draft: { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', label: 'Draft' },
           scheduled: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', label: 'Scheduled' },
           ongoing: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', label: 'Ongoing' },
+          full: { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200', label: 'Full' },
           completed: { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', label: 'Completed' },
           cancelled: { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', label: 'Cancelled' },
         };
@@ -140,18 +139,6 @@ const ClassesListPage = () => {
 
   const handleEdit = (classItem) => {
     window.location.href = `/classes/${classItem._id}/edit`;
-  };
-
-  const handleDelete = async (classItem) => {
-    if (window.confirm(`Are you sure you want to delete "${classItem.name}"? This action cannot be undone.`)) {
-      try {
-        await deleteClassMutation.mutateAsync(classItem._id);
-        refetch();
-      } catch (error) {
-        console.error('Delete failed:', error);
-        alert('Failed to delete class. Please try again.');
-      }
-    }
   };
 
   const handleOpenClass = async (classItem) => {
@@ -192,6 +179,7 @@ const ClassesListPage = () => {
             <option value="draft">Draft</option>
             <option value="scheduled">Scheduled</option>
             <option value="ongoing">Ongoing</option>
+            <option value="full">Full</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
@@ -241,7 +229,7 @@ const ClassesListPage = () => {
       );
     }
 
-    if (classItem.status === 'scheduled' || classItem.status === 'ongoing') {
+    if (classItem.status === 'scheduled' || classItem.status === 'ongoing' || classItem.status === 'full') {
       return (
         <button
           onClick={() => handleCloseClass(classItem)}
@@ -306,12 +294,11 @@ const ClassesListPage = () => {
         onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))}
         onFilter={renderFilters}
         loading={isLoading}
-        emptyMessage="No classes found. Create your first class to get started!"
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onView={handleView}
-        showActions={true}
-      />
+      emptyMessage="No classes found. Create your first class to get started!"
+      onEdit={handleEdit}
+      onView={handleView}
+      showActions={true}
+    />
     </div>
   );
 };

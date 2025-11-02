@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFetchStaff } from '../../hooks/useFetchStaff';
-import { PlusIcon, PencilSquareIcon, TrashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilSquareIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import apiClient from '../../api/apiClient';
+import { staffApi } from '../../api/staffApi';
 import { CATEGORY_OPTIONS } from '../../constants/categories';
 
 const getSkillLabel = (skill) => CATEGORY_OPTIONS[skill]?.label || skill;
@@ -13,6 +14,8 @@ const StaffListPage = () => {
   const [filterApproval, setFilterApproval] = useState('all'); // all, pending, approved
   const [approvingId, setApprovingId] = useState(null);
   const [approveError, setApproveError] = useState(null);
+  const [activeToggleId, setActiveToggleId] = useState(null);
+  const [activeToggleError, setActiveToggleError] = useState(null);
 
   const staffList = staffResponse?.data || [];
 
@@ -85,6 +88,40 @@ const StaffListPage = () => {
       alert('Error: ' + errorMsg);
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleToggleActive = async (staff) => {
+    const action = staff.isActive ? 'deactivate' : 'activate';
+    const confirmationMessage = staff.isActive
+      ? `Deactivate ${staff.name}'s account?`
+      : `Activate ${staff.name}'s account?`;
+
+    if (!window.confirm(confirmationMessage)) {
+      return;
+    }
+
+    try {
+      setActiveToggleId(staff._id);
+      setActiveToggleError(null);
+
+      if (staff.isActive) {
+        await staffApi.deactivateStaff(staff._id);
+      } else {
+        await staffApi.activateStaff(staff._id);
+      }
+
+      refetch();
+    } catch (error) {
+      console.error(`Failed to ${action} staff:`, error);
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        `Failed to ${action} staff account`;
+      setActiveToggleError(message);
+      alert(`Error: ${message}`);
+    } finally {
+      setActiveToggleId(null);
     }
   };
 
@@ -171,6 +208,12 @@ const StaffListPage = () => {
         </div>
       </div>
 
+      {(approveError || activeToggleError) && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+          {approveError || activeToggleError}
+        </div>
+      )}
+
       {/* Staff Table */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
         {filteredStaff.length === 0 ? (
@@ -225,45 +268,54 @@ const StaffListPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(staff)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      {!staff.skillsApprovedByAdmin && staff.isActive && (
-                        <button
-                          onClick={() => handleQuickApprove(staff._id, staff.name)}
-                          disabled={approvingId === staff._id}
-                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 inline-flex items-center gap-1 disabled:opacity-50 transition-colors"
-                          title="Approve Skills"
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        {!staff.skillsApprovedByAdmin && staff.isActive && (
+                          <button
+                            onClick={() => handleQuickApprove(staff._id, staff.name)}
+                            disabled={approvingId === staff._id}
+                            className="inline-flex items-center gap-1 rounded-full border border-green-200 px-3 py-1 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20"
+                            title="Approve Skills"
+                          >
+                            {approvingId === staff._id ? (
+                              <>
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-500 border-t-transparent dark:border-green-300" />
+                                Approving...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircleIcon className="h-4 w-4" />
+                                Approve
+                              </>
+                            )}
+                          </button>
+                        )}
+                        <Link
+                          to={`/staff/${staff._id}`}
+                          className="inline-flex items-center gap-1 rounded-full border border-blue-200 px-3 py-1 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/20"
                         >
-                          {approvingId === staff._id ? (
+                          <PencilSquareIcon className="h-4 w-4" />
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => handleToggleActive(staff)}
+                          disabled={activeToggleId === staff._id}
+                          className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium disabled:opacity-50 ${
+                            staff.isActive
+                              ? 'border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20'
+                              : 'border border-green-200 text-green-600 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20'
+                          }`}
+                        >
+                          {activeToggleId === staff._id ? (
                             <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-green-600 border-t-transparent"></div>
-                              Approving...
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              {staff.isActive ? 'Deactivating...' : 'Activating...'}
                             </>
                           ) : (
-                            <>
-                              <CheckCircleIcon className="h-4 w-4" />
-                              Approve
-                            </>
+                            <>{staff.isActive ? 'Deactivate' : 'Activate'}</>
                           )}
                         </button>
-                      )}
-                      <Link
-                        to={`/staff/${staff._id}`}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center gap-1"
-                      >
-                        <PencilSquareIcon className="h-4 w-4" />
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this staff member?')) {
-                            // TODO: Implement delete functionality
-                          }
-                        }}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 inline-flex items-center gap-1"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                        Delete
-                      </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -15,6 +15,7 @@ import {
   ClockIcon,
   QrCodeIcon,
   PencilSquareIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 const ClassDetailPage = () => {
@@ -36,6 +37,30 @@ const ClassDetailPage = () => {
   const [qrFeedback, setQrFeedback] = useState(null);
   const [actionFeedback, setActionFeedback] = useState(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [isDownloadingQRCode, setIsDownloadingQRCode] = useState(false);
+  const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
+
+  const classItem = classData?.data;
+  const classIdFromData = classItem?._id || classItem?.id;
+  const resolvedClassId = classIdFromData || id;
+
+  React.useEffect(() => {
+    setActionFeedback(null);
+    setShowCloseConfirm(false);
+  }, [classItem?.status]);
+
+  React.useEffect(() => {
+    if (!isQrPreviewOpen) {
+      return undefined;
+    }
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsQrPreviewOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isQrPreviewOpen]);
 
   if (isLoading) {
     return (
@@ -111,6 +136,48 @@ const ClassDetailPage = () => {
         message: apiMessage || 'Failed to generate QR code. Please try again.',
       });
     }
+  };
+
+  const handleDownloadQRCodeImage = async () => {
+    if (!qrCodeInfo?.url || isDownloadingQRCode) {
+      return;
+    }
+
+    try {
+      setIsDownloadingQRCode(true);
+      const response = await fetch(qrCodeInfo.url, { mode: 'cors' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch QR code image');
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', `class-${classItem._id || classItem.id || 'qr'}.png`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (downloadError) {
+      console.error('Failed to download QR code image:', downloadError);
+      setQrFeedback({
+        type: 'error',
+        message: 'Không thể tải QR code. Vui lòng thử lại.',
+      });
+    } finally {
+      setIsDownloadingQRCode(false);
+    }
+  };
+
+  const handleOpenQrPreview = () => {
+    if (!qrCodeInfo?.url) {
+      return;
+    }
+    setIsQrPreviewOpen(true);
+  };
+
+  const handleCloseQrPreview = () => {
+    setIsQrPreviewOpen(false);
   };
 
   const handleOpenEnrollment = async () => {
@@ -214,6 +281,7 @@ const ClassDetailPage = () => {
                     classItem.status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
                     classItem.status === 'scheduled' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
                     classItem.status === 'ongoing' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    classItem.status === 'full' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' :
                     classItem.status === 'completed' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
                     'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                   }`}>
@@ -380,6 +448,7 @@ const ClassDetailPage = () => {
                           type="button"
                           onClick={handleCloseClass}
                           disabled={isClosingClass}
+                          className="inline-flex flex-1 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-red-500 dark:hover:bg-red-600"
                           className="inline-flex flex-1 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-70 dark:bg-red-500 dark:hover:bg-red-600"
                         >
                           {isClosingClass ? 'Closing...' : 'Confirm'}
@@ -439,7 +508,7 @@ const ClassDetailPage = () => {
             className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
               !canGenerateQRCode || isGeneratingQRCode
                 ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-500 dark:hover:bg-primary-600'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:bg-indigo-500 dark:hover:bg-indigo-600'
             }`}
           >
             {isGeneratingQRCode ? 'Generating...' : isQRCodeAvailable ? 'Regenerate QR Code' : 'Generate QR Code'}
@@ -466,21 +535,27 @@ const ClassDetailPage = () => {
           ) : isQRCodeAvailable ? (
             <>
               <div className="flex flex-col items-center gap-4">
-                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <button
+                  type="button"
+                  onClick={handleOpenQrPreview}
+                  className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-700 dark:bg-gray-900"
+                >
                   <img
                     src={qrCodeInfo.url}
                     alt={`QR code for ${classItem.name}`}
                     className="h-48 w-48 object-contain"
                   />
+                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDownloadQRCodeImage}
+                    disabled={isDownloadingQRCode}
+                    className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                  >
+                    {isDownloadingQRCode ? 'Downloading...' : 'Download'}
+                  </button>
                 </div>
-                <a
-                  href={qrCodeInfo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                >
-                  Open QR code in new tab
-                </a>
               </div>
               <div className="w-full max-w-xl rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                 <dl className="space-y-3">
@@ -516,6 +591,34 @@ const ClassDetailPage = () => {
           )}
         </div>
       </div>
+
+      {isQrPreviewOpen && qrCodeInfo?.url && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={handleCloseQrPreview}
+        >
+          <div
+            className="relative w-full max-w-3xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={handleCloseQrPreview}
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              aria-label="Close QR code preview"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+            <div className="overflow-hidden rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+              <img
+                src={qrCodeInfo.url}
+                alt={`Enlarged QR code for ${classItem.name}`}
+                className="mx-auto max-h-[70vh] w-full max-w-full object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
