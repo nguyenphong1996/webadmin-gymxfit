@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useFetchClasses, useDeleteClass, useOpenClass, useCloseClass } from '../../hooks/useFetchClasses';
+import { useFetchClasses, useOpenClass, useCloseClass } from '../../hooks/useFetchClasses';
 import TableWithActions from '../../components/common/TableWithActions';
 import {
   PlusIcon,
   EyeIcon,
   PencilIcon,
-  TrashIcon,
   PlayIcon,
   StopIcon,
 } from '@heroicons/react/24/outline';
@@ -27,7 +26,6 @@ const ClassesListPage = () => {
     refetch,
   } = useFetchClasses(filters);
 
-  const deleteClassMutation = useDeleteClass();
   const openClassMutation = useOpenClass();
   const closeClassMutation = useCloseClass();
 
@@ -141,18 +139,6 @@ const ClassesListPage = () => {
 
   const handleEdit = (classItem) => {
     window.location.href = `/classes/${classItem._id}/edit`;
-  };
-
-  const handleDelete = async (classItem) => {
-    if (window.confirm(`Are you sure you want to delete "${classItem.name}"? This action cannot be undone.`)) {
-      try {
-        await deleteClassMutation.mutateAsync(classItem._id);
-        refetch();
-      } catch (error) {
-        console.error('Delete failed:', error);
-        alert('Failed to delete class. Please try again.');
-      }
-    }
   };
 
   const handleOpenClass = async (classItem) => {
@@ -308,12 +294,11 @@ const ClassesListPage = () => {
         onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))}
         onFilter={renderFilters}
         loading={isLoading}
-        emptyMessage="No classes found. Create your first class to get started!"
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onView={handleView}
-        showActions={true}
-      />
+      emptyMessage="No classes found. Create your first class to get started!"
+      onEdit={handleEdit}
+      onView={handleView}
+      showActions={true}
+    />
     </div>
   );
 };

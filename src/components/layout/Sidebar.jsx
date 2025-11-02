@@ -49,10 +49,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-50 bg-white dark:bg-gray-900 shadow-xl transform transition-all duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0 lg:static lg:inset-auto
+        ${isOpen ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none'}
+        lg:translate-x-0 lg:pointer-events-auto lg:static lg:inset-auto lg:flex-shrink-0
         ${isCollapsed ? 'lg:w-20' : 'lg:w-64'} w-64
-        lg:h-screen flex flex-col
+        h-screen flex flex-col overflow-y-auto lg:min-h-screen
       `}>
         {/* Logo Header */}
         <div className={`flex items-center justify-between h-20 px-4 border-b border-gray-200 dark:border-gray-800`}>
@@ -104,7 +104,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         </nav>
 
         {/* Collapse Button & Theme Toggle */}
-        <div className="absolute bottom-4 left-4 right-4 space-y-2">
+        <div className="mt-auto px-4 pb-4 space-y-2">
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}

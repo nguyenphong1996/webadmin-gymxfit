@@ -31,7 +31,12 @@ const UsersListPage = () => {
     return params;
   }, [page, searchTerm, statusFilter, verifiedFilter]);
 
-  const { data: usersResponse, isLoading, error } = useFetchUsers(queryParams);
+  const {
+    data: usersResponse,
+    isPending,
+    isFetching,
+    error,
+  } = useFetchUsers(queryParams);
 
   const users = usersResponse?.data || [];
   const pagination = usersResponse?.pagination || { page: 1, pages: 1, total: 0, limit: 10 };
@@ -70,7 +75,7 @@ const UsersListPage = () => {
     );
   };
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -89,6 +94,11 @@ const UsersListPage = () => {
 
   return (
     <div className="space-y-6">
+      {isFetching && !isPending && (
+        <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-200">
+          Đang cập nhật danh sách...
+        </div>
+      )}
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quản lý người dùng</h1>

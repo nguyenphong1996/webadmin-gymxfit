@@ -9,6 +9,7 @@ export const useFetchUsers = (params = {}) => {
     queryKey: ['users', params],
     queryFn: () => usersApi.getUsers(params),
     staleTime: 1000 * 60 * 5, // 5 minutes
+    placeholderData: (previousData) => previousData,
   });
 };
 
