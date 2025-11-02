@@ -95,14 +95,6 @@ const ClassDetailPage = () => {
     );
   }
 
-  const classItem = classData.data;
-  React.useEffect(() => {
-    setActionFeedback(null);
-    setShowCloseConfirm(false);
-  }, [classItem.status]);
-
-  const classIdFromData = classItem?._id || classItem?.id;
-  const resolvedClassId = classIdFromData || id;
   const qrCodeInfo = qrCodeData?.data?.qrCode || classItem.qrCode;
   const qrCodeMessage = qrCodeData?.message;
   const qrCodeStatus = qrCodeData?.status;
@@ -449,7 +441,6 @@ const ClassDetailPage = () => {
                           onClick={handleCloseClass}
                           disabled={isClosingClass}
                           className="inline-flex flex-1 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-red-500 dark:hover:bg-red-600"
-                          className="inline-flex flex-1 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-70 dark:bg-red-500 dark:hover:bg-red-600"
                         >
                           {isClosingClass ? 'Closing...' : 'Confirm'}
                         </button>
