@@ -35,6 +35,16 @@ const ClassDetailPage = () => {
   const closeClassMutation = useCloseClass();
   const [qrFeedback, setQrFeedback] = useState(null);
   const [actionFeedback, setActionFeedback] = useState(null);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  const classItem = classData?.data;
+  const classIdFromData = classItem?._id || classItem?.id;
+  const resolvedClassId = classIdFromData || id;
+
+  React.useEffect(() => {
+    setActionFeedback(null);
+    setShowCloseConfirm(false);
+  }, [classItem?.status]);
 
   if (isLoading) {
     return (
@@ -69,21 +79,14 @@ const ClassDetailPage = () => {
     );
   }
 
-  const classItem = classData.data;
-  const classIdFromData = classItem?._id || classItem?.id;
-  const resolvedClassId = classIdFromData || id;
   const qrCodeInfo = qrCodeData?.data?.qrCode || classItem.qrCode;
   const qrCodeMessage = qrCodeData?.message;
   const qrCodeStatus = qrCodeData?.status;
   const isQRCodeAvailable = Boolean(qrCodeInfo?.url);
-  const canGenerateQRCode = ['scheduled', 'ongoing'].includes(classItem.status);
+  const canGenerateQRCode = ['scheduled', 'ongoing', 'full'].includes(classItem.status);
   const isGeneratingQRCode = generateQRCodeMutation.isPending;
   const isOpeningClass = openClassMutation.isPending;
   const isClosingClass = closeClassMutation.isPending;
-
-  React.useEffect(() => {
-    setActionFeedback(null);
-  }, [classItem.status]);
 
   const handleGenerateQRCode = async () => {
     const targetClassId = resolvedClassId;
@@ -138,18 +141,13 @@ const ClassDetailPage = () => {
       return;
     }
 
-    const reason = window.prompt('Enter reason for closing class (completed/cancelled):', 'completed');
-    if (!reason || (reason !== 'completed' && reason !== 'cancelled')) {
-      return;
-    }
-
     setActionFeedback(null);
     try {
-      await closeClassMutation.mutateAsync({ classId: resolvedClassId, reason });
+      await closeClassMutation.mutateAsync({ classId: resolvedClassId, reason: 'cancelled' });
       await refetchClass();
       setActionFeedback({
         type: 'success',
-        message: `Class marked as ${reason === 'completed' ? 'completed' : 'cancelled'}.`,
+        message: 'Class marked as cancelled.',
       });
     } catch (mutationError) {
       const message = mutationError?.response?.data?.message || 'Unable to close class.';
@@ -157,6 +155,8 @@ const ClassDetailPage = () => {
         type: 'error',
         message,
       });
+    } finally {
+      setShowCloseConfirm(false);
     }
   };
 
@@ -215,6 +215,7 @@ const ClassDetailPage = () => {
                     classItem.status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
                     classItem.status === 'scheduled' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
                     classItem.status === 'ongoing' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    classItem.status === 'full' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' :
                     classItem.status === 'completed' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
                     'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                   }`}>
@@ -348,19 +349,47 @@ const ClassDetailPage = () => {
                 </button>
               )}
 
-              {(classItem.status === 'scheduled' || classItem.status === 'ongoing') && (
-                <button
-                  type="button"
-                  onClick={handleCloseClass}
-                  disabled={isClosingClass}
-                  className={`w-full flex justify-center px-4 py-2 rounded-md text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition ${
-                    isClosingClass
-                      ? 'border border-red-200 bg-red-100 text-red-500 cursor-not-allowed'
-                      : 'border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900 dark:text-red-200 dark:border-red-600 dark:hover:bg-red-800'
-                  }`}
-                >
-                  {isClosingClass ? 'Closing...' : 'Close Class'}
-                </button>
+              {(classItem.status === 'scheduled' || classItem.status === 'ongoing' || classItem.status === 'full') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowCloseConfirm(true)}
+                    disabled={isClosingClass}
+                    className={`w-full flex justify-center px-4 py-2 rounded-md text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition ${
+                      isClosingClass
+                        ? 'border border-red-200 bg-red-100 text-red-500 cursor-not-allowed'
+                        : 'border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900 dark:text-red-200 dark:border-red-600 dark:hover:bg-red-800'
+                    }`}
+                  >
+                    {isClosingClass ? 'Closing...' : 'Close Class'}
+                  </button>
+                  {showCloseConfirm && (
+                    <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-700 dark:bg-red-900/40 dark:text-red-200">
+                      <p className="font-semibold">Confirm close class?</p>
+                      <p className="mt-1">
+                        This will cancel the class and prevent further enrollments.
+                      </p>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCloseConfirm(false)}
+                          disabled={isClosingClass}
+                          className="inline-flex flex-1 items-center justify-center rounded-md border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-red-600 dark:text-red-200 dark:hover:bg-red-800/40"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCloseClass}
+                          disabled={isClosingClass}
+                          className="inline-flex flex-1 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-red-500 dark:hover:bg-red-600"
+                        >
+                          {isClosingClass ? 'Closing...' : 'Confirm'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {isQRCodeAvailable && (
@@ -401,7 +430,7 @@ const ClassDetailPage = () => {
             </p>
             {!canGenerateQRCode && (
               <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                QR code generation is available only when the class status is Scheduled or Ongoing.
+                QR code generation is available only when the class status is Scheduled, Ongoing, or Full.
               </p>
             )}
           </div>
@@ -412,7 +441,7 @@ const ClassDetailPage = () => {
             className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
               !canGenerateQRCode || isGeneratingQRCode
                 ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-500 dark:hover:bg-primary-600'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:bg-indigo-500 dark:hover:bg-indigo-600'
             }`}
           >
             {isGeneratingQRCode ? 'Generating...' : isQRCodeAvailable ? 'Regenerate QR Code' : 'Generate QR Code'}

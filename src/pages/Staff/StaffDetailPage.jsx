@@ -1,13 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeftIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CheckIcon, XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import apiClient from '../../api/apiClient';
+import { staffApi } from '../../api/staffApi';
 import { CATEGORY_OPTIONS } from '../../constants/categories';
 
 const SKILL_OPTIONS = Object.entries(CATEGORY_OPTIONS).map(([value, { label }]) => ({
   value,
   label,
 }));
+
+const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+const formatFileSize = (bytes) => {
+  if (typeof bytes !== 'number' || Number.isNaN(bytes)) {
+    return '';
+  }
+
+  const megabytes = bytes / (1024 * 1024);
+  if (megabytes >= 1) {
+    return `${megabytes.toFixed(2)} MB`;
+  }
+
+  const kilobytes = bytes / 1024;
+  if (kilobytes >= 1) {
+    return `${kilobytes.toFixed(1)} KB`;
+  }
+
+  return `${bytes} B`;
+};
 
 const getSkillLabel = (skill) => CATEGORY_OPTIONS[skill]?.label || skill;
 const formatSkillsList = (skills = []) =>
@@ -26,10 +48,17 @@ const StaffDetailPage = () => {
     phone: '',
     skills: [],
     gender: '',
-    dob: '',
-    height: '',
-    weight: '',
-  });
+   dob: '',
+   height: '',
+   weight: '',
+ });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [avatarError, setAvatarError] = useState('');
+  const [avatarSuccess, setAvatarSuccess] = useState('');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarObjectUrlRef = useRef('');
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     const fetchStaff = async () => {
@@ -47,6 +76,15 @@ const StaffDetailPage = () => {
           height: staffData.height || '',
           weight: staffData.weight || '',
         });
+        const remoteAvatar = staffData.avatar?.url || '';
+        if (avatarObjectUrlRef.current) {
+          URL.revokeObjectURL(avatarObjectUrlRef.current);
+          avatarObjectUrlRef.current = '';
+        }
+        setAvatarFile(null);
+        setAvatarPreview(remoteAvatar);
+        setAvatarError('');
+        setAvatarSuccess('');
         setIsLoading(false);
       } catch (err) {
         console.error('Failed to fetch staff:', err);
@@ -60,6 +98,14 @@ const StaffDetailPage = () => {
     }
   }, [staffId]);
 
+  useEffect(() => {
+    return () => {
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+      }
+    };
+  }, []);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -72,6 +118,106 @@ const StaffDetailPage = () => {
         ? prev.skills.filter(s => s !== skill)
         : [...prev.skills, skill],
     }));
+  };
+
+  const handleAvatarFileChange = (event) => {
+    const file = event.target.files?.[0];
+    setAvatarError('');
+    setAvatarSuccess('');
+
+    if (!file) {
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+        avatarObjectUrlRef.current = '';
+      }
+      setAvatarFile(null);
+      setAvatarPreview(staff?.avatar?.url || '');
+      return;
+    }
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setAvatarError('Avatar phải là file JPG, PNG, GIF hoặc WEBP.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_SIZE_BYTES) {
+      setAvatarError('Avatar vượt quá 5MB. Vui lòng chọn file nhỏ hơn.');
+      event.target.value = '';
+      return;
+    }
+
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+      avatarObjectUrlRef.current = '';
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    avatarObjectUrlRef.current = previewUrl;
+
+    setAvatarFile(file);
+    setAvatarPreview(previewUrl);
+  };
+
+  const handleAvatarResetSelection = () => {
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+      avatarObjectUrlRef.current = '';
+    }
+    setAvatarFile(null);
+    setAvatarPreview(staff?.avatar?.url || '');
+    setAvatarError('');
+    setAvatarSuccess('');
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = '';
+    }
+  };
+
+  const handleAvatarUpload = async () => {
+    if (!avatarFile) {
+      setAvatarError('Vui lòng chọn ảnh hợp lệ trước khi upload.');
+      return;
+    }
+
+    setAvatarError('');
+    setAvatarSuccess('');
+    setIsUploadingAvatar(true);
+
+    try {
+      const response = await staffApi.updateStaffAvatar(staffId, avatarFile);
+      const newAvatarUrl = response?.staff?.avatar || '';
+
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+        avatarObjectUrlRef.current = '';
+      }
+
+      setAvatarFile(null);
+      setAvatarPreview(newAvatarUrl || staff?.avatar?.url || '');
+      setStaff((prev) =>
+        prev
+          ? {
+              ...prev,
+              avatar: {
+                ...(prev.avatar || {}),
+                url: newAvatarUrl || prev.avatar?.url || '',
+              },
+            }
+          : prev
+      );
+      setAvatarSuccess(response?.message || 'Cập nhật avatar thành công.');
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = '';
+      }
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Failed to update avatar. Vui lòng thử lại.';
+      setAvatarError(message);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -141,7 +287,7 @@ const StaffDetailPage = () => {
 
   const activateStaff = async () => {
     try {
-      await apiClient.patch(`/api/admin/staff/${staffId}/activate`);
+      await staffApi.activateStaff(staffId);
       setStaff(prev => ({ ...prev, isActive: true }));
     } catch (err) {
       console.error('Failed to activate staff:', err);
@@ -150,7 +296,7 @@ const StaffDetailPage = () => {
 
   const deactivateStaff = async () => {
     try {
-      await apiClient.patch(`/api/admin/staff/${staffId}/deactivate`);
+      await staffApi.deactivateStaff(staffId);
       setStaff(prev => ({ ...prev, isActive: false }));
     } catch (err) {
       console.error('Failed to deactivate staff:', err);
@@ -243,6 +389,91 @@ const StaffDetailPage = () => {
           <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
             {staff?.hireDate ? new Date(staff.hireDate).toLocaleDateString() : 'N/A'}
           </p>
+        </div>
+      </div>
+
+      {/* Avatar Management */}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Avatar</h2>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            JPG, PNG, GIF, WEBP · Tối đa 5MB
+          </span>
+        </div>
+
+        {avatarError && (
+          <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
+            {avatarError}
+          </div>
+        )}
+        {avatarSuccess && (
+          <div className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200">
+            {avatarSuccess}
+          </div>
+        )}
+
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-32 w-32 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt={`${staff?.name || 'Staff'} avatar`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <PhotoIcon className="h-12 w-12 text-gray-400" />
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Ảnh đại diện giúp PT được nhận diện nhanh hơn.
+            </p>
+          </div>
+
+          <div className="flex-1 space-y-3">
+            <label
+              className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border border-dashed ${
+                isUploadingAvatar
+                  ? 'border-gray-300 text-gray-400 cursor-not-allowed'
+                  : 'border-blue-300 text-blue-600 hover:border-blue-500 hover:text-blue-700 cursor-pointer dark:border-blue-700 dark:text-blue-300'
+              }`}
+            >
+              <span>{isUploadingAvatar ? 'Đang xử lý...' : 'Chọn ảnh từ máy'}</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleAvatarFileChange}
+                disabled={isUploadingAvatar}
+                ref={avatarInputRef}
+                className="hidden"
+              />
+            </label>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleAvatarUpload}
+                disabled={!avatarFile || isUploadingAvatar}
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isUploadingAvatar ? 'Đang upload...' : 'Upload Avatar'}
+              </button>
+              <button
+                type="button"
+                onClick={handleAvatarResetSelection}
+                disabled={isUploadingAvatar || (!avatarFile && !staff?.avatar?.url)}
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Huỷ chọn
+              </button>
+            </div>
+
+            {avatarFile && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Đã chọn: {avatarFile.name} · {formatFileSize(avatarFile.size)}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

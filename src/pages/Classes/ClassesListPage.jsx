@@ -117,6 +117,7 @@ const ClassesListPage = () => {
           draft: { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', label: 'Draft' },
           scheduled: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', label: 'Scheduled' },
           ongoing: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', label: 'Ongoing' },
+          full: { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200', label: 'Full' },
           completed: { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', label: 'Completed' },
           cancelled: { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', label: 'Cancelled' },
         };
@@ -192,6 +193,7 @@ const ClassesListPage = () => {
             <option value="draft">Draft</option>
             <option value="scheduled">Scheduled</option>
             <option value="ongoing">Ongoing</option>
+            <option value="full">Full</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
@@ -241,7 +243,7 @@ const ClassesListPage = () => {
       );
     }
 
-    if (classItem.status === 'scheduled' || classItem.status === 'ongoing') {
+    if (classItem.status === 'scheduled' || classItem.status === 'ongoing' || classItem.status === 'full') {
       return (
         <button
           onClick={() => handleCloseClass(classItem)}

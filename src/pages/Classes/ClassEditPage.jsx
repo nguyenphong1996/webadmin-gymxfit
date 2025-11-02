@@ -1,6 +1,8 @@
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useFetchClass, useUpdateClass } from '../../hooks/useFetchClasses';
+import { useFetchStaffByCategory } from '../../hooks/useFetchStaff';
+import { CATEGORY_OPTIONS, getSubcategories } from '../../constants/categories';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 const ClassEditPage = () => {
@@ -11,32 +13,97 @@ const ClassEditPage = () => {
 
   const { data: classData, isLoading, error } = useFetchClass(id);
   const [formData, setFormData] = React.useState({});
+  const [initialFormData, setInitialFormData] = React.useState(null);
   const [errors, setErrors] = React.useState({});
+
+  const subcategoryOptions = React.useMemo(() => {
+    const options = getSubcategories(formData.category || '');
+    return Array.isArray(options) ? [...options] : [];
+  }, [formData.category]);
+
+  const subcategoryChoices = React.useMemo(() => {
+    if (!formData.category) {
+      return [];
+    }
+    if (formData.subcategory && formData.subcategory.trim() && !subcategoryOptions.includes(formData.subcategory)) {
+      return [...subcategoryOptions, formData.subcategory];
+    }
+    return subcategoryOptions;
+  }, [formData.category, formData.subcategory, subcategoryOptions]);
+
+  const resolvedStaffFromClass = React.useMemo(() => {
+    const staff = classData?.data?.staffId;
+    if (!staff) return null;
+    if (typeof staff === 'string') {
+      return { _id: staff, name: '', phone: '' };
+    }
+    const staffId = staff._id || staff.id || staff?.toString?.();
+    if (!staffId) return null;
+    return {
+      _id: staffId.toString(),
+      name: staff.name || '',
+      phone: staff.phone || '',
+    };
+  }, [classData?.data?.staffId]);
 
   // Initialize form data when class data loads
   React.useEffect(() => {
     if (classData?.data) {
       const classItem = classData.data;
-      setFormData({
+      const staffField = classItem.staffId;
+      const resolvedStaffId =
+        typeof staffField === 'object' && staffField !== null
+          ? (staffField._id || staffField.id || staffField?.toString?.() || '').toString()
+          : (staffField || '').toString();
+
+      const normalizedInitial = {
         name: classItem.name || '',
         category: classItem.category || '',
         subcategory: classItem.subcategory || '',
         description: classItem.description || '',
-        capacity: classItem.capacity || '',
+        capacity: classItem.capacity !== undefined && classItem.capacity !== null ? String(classItem.capacity) : '',
         startTime: classItem.startTime ? new Date(classItem.startTime).toISOString().slice(0, 16) : '',
         endTime: classItem.endTime ? new Date(classItem.endTime).toISOString().slice(0, 16) : '',
         location: classItem.location || '',
-      });
+        staffId: resolvedStaffId || '',
+      };
+
+      setFormData(normalizedInitial);
+      setInitialFormData(normalizedInitial);
     }
   }, [classData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+    if (name === 'category') {
+      setFormData((prev) => ({
+        ...prev,
+        category: value,
+        subcategory: '',
+        staffId: '',
+      }));
+      if (errors.subcategory) {
+        setErrors((prev) => ({ ...prev, subcategory: '' }));
+      }
+      if (errors.staffId) {
+        setErrors((prev) => ({ ...prev, staffId: '' }));
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
+    // Clear error when user types
+    setErrors((prev) => {
+      if (!prev) return prev;
+
+      const next = { ...prev };
+      if (next[name]) {
+        next[name] = '';
+      }
+      if (next.submit) {
+        next.submit = '';
+      }
+      return next;
+    });
   };
 
   const validateForm = () => {
@@ -66,6 +133,14 @@ const ClassEditPage = () => {
       newErrors.endTime = 'End time must be after start time';
     }
 
+    if (subcategoryOptions.length > 0 && formData.category && !formData.subcategory) {
+      newErrors.subcategory = 'Subcategory is required';
+    }
+
+    if (!formData.staffId) {
+      newErrors.staffId = 'Instructor is required';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -73,18 +148,123 @@ const ClassEditPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!initialFormData) {
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
 
     try {
-      await updateClassMutation.mutateAsync({ classId: id, classData: formData });
+      const normalizeForCompare = (data = {}) => ({
+        name: data.name?.trim() || '',
+        category: data.category || '',
+        subcategory: data.subcategory || '',
+        description: data.description?.trim() || '',
+        capacity:
+          data.capacity !== undefined && data.capacity !== null && data.capacity !== ''
+            ? String(data.capacity)
+            : '',
+        startTime: data.startTime || '',
+        endTime: data.endTime || '',
+        location: data.location?.trim() || '',
+        staffId: data.staffId || '',
+      });
+
+      const normalizedCurrent = normalizeForCompare(formData);
+      const normalizedInitial = normalizeForCompare(initialFormData);
+
+      const payload = {};
+
+      if (normalizedCurrent.name !== normalizedInitial.name) {
+        payload.name = normalizedCurrent.name;
+      }
+
+      if (normalizedCurrent.category !== normalizedInitial.category) {
+        payload.category = normalizedCurrent.category;
+      }
+
+      if (normalizedCurrent.subcategory !== normalizedInitial.subcategory) {
+        payload.subcategory = normalizedCurrent.subcategory || undefined;
+      }
+
+      if (normalizedCurrent.description !== normalizedInitial.description) {
+        payload.description = normalizedCurrent.description || undefined;
+      }
+
+      if (normalizedCurrent.capacity !== normalizedInitial.capacity) {
+        payload.capacity = normalizedCurrent.capacity ? Number(normalizedCurrent.capacity) : undefined;
+      }
+
+      const startChanged = normalizedCurrent.startTime !== normalizedInitial.startTime;
+      const endChanged = normalizedCurrent.endTime !== normalizedInitial.endTime;
+      if (startChanged || endChanged) {
+        if (normalizedCurrent.startTime) {
+          payload.startTime = new Date(normalizedCurrent.startTime).toISOString();
+        }
+        if (normalizedCurrent.endTime) {
+          payload.endTime = new Date(normalizedCurrent.endTime).toISOString();
+        }
+      }
+
+      if (normalizedCurrent.location !== normalizedInitial.location) {
+        payload.location = normalizedCurrent.location || undefined;
+      }
+
+      if (normalizedCurrent.staffId !== normalizedInitial.staffId) {
+        payload.staffId = normalizedCurrent.staffId || undefined;
+      }
+
+      if (Object.keys(payload).length === 0) {
+        setErrors({ submit: 'No changes detected.' });
+        return;
+      }
+
+      await updateClassMutation.mutateAsync({ classId: id, classData: payload });
       navigate(`/classes/${id}`);
     } catch (error) {
       console.error('Failed to update class:', error);
-      setErrors({ submit: error.message || 'Failed to update class. Please try again.' });
+      const message =
+        error?.response?.data?.errors?.[0]?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to update class. Please try again.';
+      setErrors({ submit: message });
     }
   };
+
+  const { data: staffData, isLoading: isStaffLoading } = useFetchStaffByCategory(formData.category);
+  const staffList = React.useMemo(() => {
+    const normalized = (staffData?.data || [])
+      .map((staff) => {
+        const staffId =
+          staff._id?.toString?.() || staff._id || staff.id || staff?.toString?.() || '';
+        return {
+          ...staff,
+          _id: staffId,
+        };
+      })
+      .filter((staff) => Boolean(staff._id));
+
+    const fallbackStaff =
+      resolvedStaffFromClass && resolvedStaffFromClass._id
+        ? {
+            ...resolvedStaffFromClass,
+            name: resolvedStaffFromClass.name || 'Current Instructor',
+          }
+        : null;
+
+    if (
+      formData.staffId &&
+      !normalized.some((staff) => staff._id === formData.staffId) &&
+      fallbackStaff
+    ) {
+      return [...normalized, fallbackStaff];
+    }
+
+    return normalized;
+  }, [staffData?.data, formData.staffId, resolvedStaffFromClass]);
 
   if (isLoading) {
     return (
@@ -182,12 +362,11 @@ const ClassEditPage = () => {
                     }`}
                   >
                     <option value="">Select a category</option>
-                    <option value="workout">Workout</option>
-                    <option value="cardio">Cardio</option>
-                    <option value="stretching">Stretching</option>
-                    <option value="nutrition">Nutrition</option>
-                    <option value="yoga">Yoga</option>
-                    <option value="other">Other</option>
+                    {Object.entries(CATEGORY_OPTIONS).map(([value, { label }]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                   {errors.category && (
                     <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.category}</p>
@@ -197,17 +376,40 @@ const ClassEditPage = () => {
                 {/* Subcategory */}
                 <div>
                   <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Subcategory
+                    Subcategory {subcategoryChoices.length > 0 && formData.category ? '*' : ''}
                   </label>
-                  <input
-                    type="text"
-                    id="subcategory"
-                    name="subcategory"
-                    value={formData.subcategory || ''}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    placeholder="e.g., Beginner, Advanced"
-                  />
+                  {formData.category && subcategoryChoices.length > 0 ? (
+                    <select
+                      id="subcategory"
+                      name="subcategory"
+                      value={formData.subcategory || ''}
+                      onChange={handleInputChange}
+                      className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+                        errors.subcategory ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    >
+                      <option value="">Select a subcategory</option>
+                      {subcategoryChoices.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      id="subcategory"
+                      name="subcategory"
+                      value={formData.subcategory || ''}
+                      onChange={handleInputChange}
+                      disabled={!formData.category}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:bg-gray-100 disabled:text-gray-500 disabled:dark:bg-gray-700 disabled:dark:text-gray-400"
+                      placeholder="Select category first"
+                    />
+                  )}
+                  {errors.subcategory && (
+                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.subcategory}</p>
+                  )}
                 </div>
 
                 {/* Capacity */}
@@ -273,6 +475,58 @@ const ClassEditPage = () => {
                   />
                   {errors.endTime && (
                     <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.endTime}</p>
+                  )}
+                </div>
+
+                {/* Instructor */}
+                <div>
+                  <label htmlFor="staffId" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Instructor *
+                  </label>
+                  {formData.category ? (
+                    <select
+                      id="staffId"
+                      name="staffId"
+                      value={formData.staffId || ''}
+                      onChange={handleInputChange}
+                      disabled={isStaffLoading}
+                      className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+                        errors.staffId ? 'border-red-300' : 'border-gray-300'
+                      } ${isStaffLoading ? 'opacity-50 cursor-wait' : ''}`}
+                    >
+                      <option value="">
+                        {isStaffLoading ? 'Loading instructors...' : 'Select instructor'}
+                      </option>
+                      {staffList.map((staff) => {
+                        const isFallback = resolvedStaffFromClass && staff._id === resolvedStaffFromClass._id;
+                        const staffLabel =
+                          staff.name?.trim() ||
+                          (isFallback ? 'Current Instructor' : 'Unnamed Instructor');
+                        return (
+                          <option key={staff._id} value={staff._id}>
+                            {staffLabel}
+                            {staff.phone ? ` (${staff.phone})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  ) : (
+                    <select
+                      id="staffId"
+                      name="staffId"
+                      disabled
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 rounded-md bg-gray-100 text-gray-500 shadow-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed"
+                    >
+                      <option>Select category first</option>
+                    </select>
+                  )}
+                  {errors.staffId && (
+                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.staffId}</p>
+                  )}
+                  {formData.category && !isStaffLoading && staffList.length === 0 && (
+                    <p className="mt-2 text-sm text-yellow-600 dark:text-yellow-400">
+                      No instructors available for this category. Update staff skills or activate a PT to proceed.
+                    </p>
                   )}
                 </div>
 
