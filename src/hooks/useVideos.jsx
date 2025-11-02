@@ -13,11 +13,13 @@ export const useFetchVideos = (params = {}) => {
 };
 
 export const useFetchVideo = (videoId, options = {}) => {
+  const { params, ...queryOptions } = options;
+
   return useQuery({
-    queryKey: ['video', videoId],
-    queryFn: () => videosApi.getVideoById(videoId),
+    queryKey: ['video', videoId, params ? JSON.stringify(params) : null],
+    queryFn: () => videosApi.getVideoById(videoId, params),
     enabled: !!videoId,
-    ...options,
+    ...queryOptions,
   });
 };
 
