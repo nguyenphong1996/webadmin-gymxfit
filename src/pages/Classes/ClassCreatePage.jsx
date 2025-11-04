@@ -5,6 +5,8 @@ import { useFetchStaffByCategory } from '../../hooks/useFetchStaff';
 import { ArrowLeftIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { CATEGORY_OPTIONS, getSubcategories } from '../../constants/categories';
 
+const MIN_CLASS_DURATION_MINUTES = 15;
+
 const ClassCreatePage = () => {
   const navigate = useNavigate();
   const createClassMutation = useCreateClass();
@@ -72,8 +74,18 @@ const ClassCreatePage = () => {
       newErrors.endTime = 'End time is required';
     }
 
-    if (formData.startTime && formData.endTime && new Date(formData.endTime) <= new Date(formData.startTime)) {
-      newErrors.endTime = 'End time must be after start time';
+    if (formData.startTime && formData.endTime) {
+      const start = new Date(formData.startTime);
+      const end = new Date(formData.endTime);
+
+      if (end <= start) {
+        newErrors.endTime = 'End time must be after start time';
+      } else {
+        const durationMinutes = (end - start) / (1000 * 60);
+        if (durationMinutes < MIN_CLASS_DURATION_MINUTES) {
+          newErrors.endTime = `Class duration must be at least ${MIN_CLASS_DURATION_MINUTES} minutes`;
+        }
+      }
     }
 
     if (!formData.staffId) {
