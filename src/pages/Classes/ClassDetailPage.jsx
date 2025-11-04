@@ -15,6 +15,8 @@ import {
   ClockIcon,
   QrCodeIcon,
   PencilSquareIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 
@@ -103,6 +105,32 @@ const ClassDetailPage = () => {
   const isGeneratingQRCode = generateQRCodeMutation.isPending;
   const isOpeningClass = openClassMutation.isPending;
   const isClosingClass = closeClassMutation.isPending;
+  const now = new Date();
+  const startTime = classItem?.startTime ? new Date(classItem.startTime) : null;
+  const endTime = classItem?.endTime ? new Date(classItem.endTime) : null;
+  const classHasStarted = Boolean(startTime) && !Number.isNaN(startTime) && now >= startTime;
+  const classHasEnded = Boolean(endTime) && !Number.isNaN(endTime) && now >= endTime;
+  const isClosedStatus = ['completed', 'cancelled'].includes(classItem.status);
+  const formattedClassEndTime = classItem?.endTime
+    ? new Date(classItem.endTime).toLocaleString([], {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+  const DEFAULT_CHECKOUT_GRACE_MINUTES = 15;
+  const checkoutGraceMinutesCandidates = [
+    classItem?.checkoutGraceMinutes,
+    classItem?.checkoutGracePeriodMinutes,
+    classItem?.attendanceSettings?.checkoutGraceMinutes,
+    classItem?.attendanceSettings?.checkoutGracePeriodMinutes,
+  ];
+  const explicitCheckoutGraceMinutes = checkoutGraceMinutesCandidates.find(
+    (value) => typeof value === 'number' && Number.isFinite(value)
+  );
+  const checkoutGraceMinutes = explicitCheckoutGraceMinutes ?? DEFAULT_CHECKOUT_GRACE_MINUTES;
 
   const handleGenerateQRCode = async () => {
     const targetClassId = resolvedClassId;
@@ -391,6 +419,65 @@ const ClassDetailPage = () => {
                 <PencilSquareIcon className="h-4 w-4" />
                 <span>Edit Class</span>
               </Link>
+
+              {classItem.status === 'scheduled' && classHasStarted && !classHasEnded && (
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-left text-sm text-blue-700 shadow-sm dark:border-blue-500/40 dark:bg-blue-900/20 dark:text-blue-100">
+                  <div className="flex items-start gap-3">
+                    <ClockIcon className="h-5 w-5 flex-shrink-0 text-blue-500 dark:text-blue-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-blue-900 dark:text-blue-100">Class window is now open.</p>
+                      <p>The first trainer check-in through the QR scanner will switch this class to Ongoing status.</p>
+                      <p>If the session is already running, remind the assigned trainer to scan the class QR code.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {classItem.status === 'scheduled' && classHasEnded && !isClosedStatus && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-700 shadow-sm dark:border-amber-500/40 dark:bg-amber-900/20 dark:text-amber-100">
+                  <div className="flex items-start gap-3">
+                    <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-amber-500 dark:text-amber-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-amber-900 dark:text-amber-100">Class end time has passed.</p>
+                      <p>Status is still Scheduled, so attendance has not been finalized.</p>
+                      <p>Ask the trainer to check out via QR or close the class from this panel once attendance is confirmed.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {classItem.status === 'ongoing' && classHasEnded && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-700 shadow-sm dark:border-amber-500/40 dark:bg-amber-900/20 dark:text-amber-100">
+                  <div className="flex items-start gap-3">
+                    <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-amber-500 dark:text-amber-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-amber-900 dark:text-amber-100">Class is past the scheduled end.</p>
+                      <p>{`Check-outs remain available for ${checkoutGraceMinutes} minute${checkoutGraceMinutes === 1 ? '' : 's'} after the scheduled end.`}</p>
+                      <p>Once the grace window expires, close the class here if the trainer has finished all check-outs.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {classItem.status === 'completed' && (
+                <div className="rounded-md border border-purple-200 bg-purple-50 p-4 text-left text-sm text-purple-700 shadow-sm dark:border-purple-600/60 dark:bg-purple-900/40 dark:text-purple-100">
+                  <div className="flex items-start gap-3">
+                    <CheckCircleIcon className="h-5 w-5 flex-shrink-0 text-purple-500 dark:text-purple-300" />
+                    <div className="space-y-2">
+                      <p className="font-semibold text-purple-900 dark:text-purple-100">
+                        {formattedClassEndTime
+                          ? `Class ended at ${formattedClassEndTime}. Status is now Completed.`
+                          : 'Class status is now Completed.'}
+                      </p>
+                      <p>New check-ins are blocked automatically.</p>
+                      <p>
+                        {`Check-outs remain available for ${checkoutGraceMinutes} minute${checkoutGraceMinutes === 1 ? '' : 's'} after the scheduled end. Once that grace window expires, users will see "Checkout window closed".`}
+                      </p>
+                      <p>Please review the attendance report if you need to confirm who checked out.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {classItem.status === 'draft' && (
                 <button
