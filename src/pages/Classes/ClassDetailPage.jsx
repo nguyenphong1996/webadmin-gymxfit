@@ -20,6 +20,53 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 
+const CLASS_STATUS_CONFIG = {
+  draft: {
+    label: 'Draft',
+    badgeClass: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+  },
+  scheduled: {
+    label: 'Scheduled',
+    badgeClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  },
+  waiting_pt: {
+    label: 'Waiting PT',
+    badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  },
+  on_going_waiting_customers: {
+    label: 'PT Checked In',
+    badgeClass: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
+  },
+  on_going: {
+    label: 'In Session',
+    badgeClass: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  },
+  waiting_checkout: {
+    label: 'Waiting Checkout',
+    badgeClass: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+  },
+  completed: {
+    label: 'Completed',
+    badgeClass: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+  },
+  expired: {
+    label: 'Expired',
+    badgeClass: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
+  },
+  overdue: {
+    label: 'Overdue',
+    badgeClass: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    badgeClass: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  },
+  full: {
+    label: 'Full Capacity',
+    badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  },
+};
+
 const ClassDetailPage = () => {
   const { id } = useParams();
   const {
@@ -41,14 +88,24 @@ const ClassDetailPage = () => {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [isDownloadingQRCode, setIsDownloadingQRCode] = useState(false);
   const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
+  const [closeReason, setCloseReason] = useState('cancelled');
 
   const classItem = classData?.data;
   const classIdFromData = classItem?._id || classItem?.id;
   const resolvedClassId = classIdFromData || id;
+  const classStatusConfig =
+    (classItem?.status && CLASS_STATUS_CONFIG[classItem.status]) || CLASS_STATUS_CONFIG.draft;
 
   React.useEffect(() => {
     setActionFeedback(null);
     setShowCloseConfirm(false);
+    if (!classItem?.status) {
+      setCloseReason('cancelled');
+      return;
+    }
+    const defaultCloseReason =
+      classItem.status === 'waiting_checkout' || classItem.status === 'overdue' ? 'completed' : 'cancelled';
+    setCloseReason(defaultCloseReason);
   }, [classItem?.status]);
 
   React.useEffect(() => {
@@ -101,7 +158,8 @@ const ClassDetailPage = () => {
   const qrCodeMessage = qrCodeData?.message;
   const qrCodeStatus = qrCodeData?.status;
   const isQRCodeAvailable = Boolean(qrCodeInfo?.url);
-  const canGenerateQRCode = ['scheduled', 'ongoing', 'full'].includes(classItem.status);
+  const qrEligibleStatuses = ['draft', 'scheduled'];
+  const canGenerateQRCode = qrEligibleStatuses.includes(classItem.status);
   const isGeneratingQRCode = generateQRCodeMutation.isPending;
   const isOpeningClass = openClassMutation.isPending;
   const isClosingClass = closeClassMutation.isPending;
@@ -110,7 +168,20 @@ const ClassDetailPage = () => {
   const endTime = classItem?.endTime ? new Date(classItem.endTime) : null;
   const classHasStarted = Boolean(startTime) && !Number.isNaN(startTime) && now >= startTime;
   const classHasEnded = Boolean(endTime) && !Number.isNaN(endTime) && now >= endTime;
-  const isClosedStatus = ['completed', 'cancelled'].includes(classItem.status);
+  const isClosedStatus = ['completed', 'cancelled', 'expired'].includes(classItem.status);
+  const isOverdueStatus = classItem.status === 'overdue';
+  const isWaitingCheckoutStatus = classItem.status === 'waiting_checkout';
+  const isWaitingPtStatus = classItem.status === 'waiting_pt';
+  const isPtWaitingCustomersStatus = classItem.status === 'on_going_waiting_customers';
+  const isInSessionStatus = classItem.status === 'on_going';
+  const canManuallyCloseStatus = [
+    'scheduled',
+    'waiting_pt',
+    'on_going_waiting_customers',
+    'on_going',
+    'waiting_checkout',
+    'overdue',
+  ].includes(classItem.status);
   const formattedClassEndTime = classItem?.endTime
     ? new Date(classItem.endTime).toLocaleString([], {
         year: 'numeric',
@@ -229,11 +300,12 @@ const ClassDetailPage = () => {
 
     setActionFeedback(null);
     try {
-      await closeClassMutation.mutateAsync({ classId: resolvedClassId, reason: 'cancelled' });
+      const reason = closeReason === 'completed' ? 'completed' : 'cancelled';
+      await closeClassMutation.mutateAsync({ classId: resolvedClassId, reason });
       await refetchClass();
       setActionFeedback({
         type: 'success',
-        message: 'Class marked as cancelled.',
+        message: reason === 'completed' ? 'Class marked as completed.' : 'Class marked as cancelled.',
       });
     } catch (mutationError) {
       const message = mutationError?.response?.data?.message || 'Unable to close class.';
@@ -297,15 +369,10 @@ const ClassDetailPage = () => {
               <div>
                 <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
                 <dd className="mt-1">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    classItem.status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
-                    classItem.status === 'scheduled' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                    classItem.status === 'ongoing' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                    classItem.status === 'full' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' :
-                    classItem.status === 'completed' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
-                    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                  }`}>
-                    {classItem.status.charAt(0).toUpperCase() + classItem.status.slice(1)}
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${classStatusConfig.badgeClass}`}
+                  >
+                    {classStatusConfig.label}
                   </span>
                 </dd>
               </div>
@@ -425,9 +492,9 @@ const ClassDetailPage = () => {
                   <div className="flex items-start gap-3">
                     <ClockIcon className="h-5 w-5 flex-shrink-0 text-blue-500 dark:text-blue-300" />
                     <div className="space-y-1.5">
-                      <p className="font-semibold text-blue-900 dark:text-blue-100">Class window is now open.</p>
-                      <p>The first trainer check-in through the QR scanner will switch this class to Ongoing status.</p>
-                      <p>If the session is already running, remind the assigned trainer to scan the class QR code.</p>
+                      <p className="font-semibold text-blue-900 dark:text-blue-100">Class window is open.</p>
+                      <p>Remind the trainer to scan the class QR code so the session advances to PT readiness.</p>
+                      <p>If customers arrive first, the class will move to Waiting PT automatically.</p>
                     </div>
                   </div>
                 </div>
@@ -439,21 +506,81 @@ const ClassDetailPage = () => {
                     <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-amber-500 dark:text-amber-300" />
                     <div className="space-y-1.5">
                       <p className="font-semibold text-amber-900 dark:text-amber-100">Class end time has passed.</p>
-                      <p>Status is still Scheduled, so attendance has not been finalized.</p>
-                      <p>Ask the trainer to check out via QR or close the class from this panel once attendance is confirmed.</p>
+                      <p>Status is still Scheduled, meaning no attendance was recorded. Confirm with the trainer if this session should be cancelled or marked no-show.</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {classItem.status === 'ongoing' && classHasEnded && (
+              {isWaitingPtStatus && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-700 shadow-sm dark:border-amber-500/40 dark:bg-amber-900/20 dark:text-amber-100">
+                  <div className="flex items-start gap-3">
+                    <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-amber-500 dark:text-amber-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-amber-900 dark:text-amber-100">Customer is waiting for PT.</p>
+                      <p>At least one member has checked in but the assigned trainer has not. Reach out to the trainer to confirm arrival.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isPtWaitingCustomersStatus && (
+                <div className="rounded-md border border-teal-200 bg-teal-50 p-4 text-left text-sm text-teal-700 shadow-sm dark:border-teal-500/40 dark:bg-teal-900/20 dark:text-teal-100">
+                  <div className="flex items-start gap-3">
+                    <ClockIcon className="h-5 w-5 flex-shrink-0 text-teal-500 dark:text-teal-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-teal-900 dark:text-teal-100">Trainer is ready.</p>
+                      <p>No members have scanned in yet. Ping the roster to confirm attendance if the session has already started.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isInSessionStatus && classHasEnded && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-700 shadow-sm dark:border-amber-500/40 dark:bg-amber-900/20 dark:text-amber-100">
                   <div className="flex items-start gap-3">
                     <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-amber-500 dark:text-amber-300" />
                     <div className="space-y-1.5">
                       <p className="font-semibold text-amber-900 dark:text-amber-100">Class is past the scheduled end.</p>
                       <p>{`Check-outs remain available for ${checkoutGraceMinutes} minute${checkoutGraceMinutes === 1 ? '' : 's'} after the scheduled end.`}</p>
-                      <p>Once the grace window expires, close the class here if the trainer has finished all check-outs.</p>
+                      <p>Encourage the trainer to check everyone out so the system can move to Waiting Checkout.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isWaitingCheckoutStatus && (
+                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-4 text-left text-sm text-indigo-700 shadow-sm dark:border-indigo-500/40 dark:bg-indigo-900/20 dark:text-indigo-100">
+                  <div className="flex items-start gap-3">
+                    <CheckCircleIcon className="h-5 w-5 flex-shrink-0 text-indigo-500 dark:text-indigo-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-indigo-900 dark:text-indigo-100">Awaiting final check-outs.</p>
+                      <p>{`Checkout window remains open for ${checkoutGraceMinutes} minute${checkoutGraceMinutes === 1 ? '' : 's'} post-session.`}</p>
+                      <p>Once everyone checks out, the system will auto-complete; otherwise close the class manually after verifying attendance.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isOverdueStatus && (
+                <div className="rounded-md border border-red-200 bg-red-50 p-4 text-left text-sm text-red-700 shadow-sm dark:border-red-500/40 dark:bg-red-900/20 dark:text-red-100">
+                  <div className="flex items-start gap-3">
+                    <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-red-500 dark:text-red-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-red-900 dark:text-red-100">Checkout window exceeded.</p>
+                      <p>At least one attendee has not checked out after the grace period. Confirm headcount and close the class when ready.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {classItem.status === 'expired' && (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-left text-sm text-slate-700 shadow-sm dark:border-slate-600/40 dark:bg-slate-900/30 dark:text-slate-100">
+                  <div className="flex items-start gap-3">
+                    <XMarkIcon className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-300" />
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">Session expired with no-show.</p>
+                      <p>No qualifying check-ins were recorded before the end time. Confirm whether to keep this as expired or cancel and reschedule.</p>
                     </div>
                   </div>
                 </div>
@@ -469,7 +596,7 @@ const ClassDetailPage = () => {
                           ? `Class ended at ${formattedClassEndTime}. Status is now Completed.`
                           : 'Class status is now Completed.'}
                       </p>
-                      <p>New check-ins are blocked automatically.</p>
+                      <p>Check-ins are blocked. Attendance records remain accessible for reporting.</p>
                       <p>
                         {`Check-outs remain available for ${checkoutGraceMinutes} minute${checkoutGraceMinutes === 1 ? '' : 's'} after the scheduled end. Once that grace window expires, users will see "Checkout window closed".`}
                       </p>
@@ -494,7 +621,7 @@ const ClassDetailPage = () => {
                 </button>
               )}
 
-              {(classItem.status === 'scheduled' || classItem.status === 'ongoing' || classItem.status === 'full') && (
+              {canManuallyCloseStatus && (
                 <>
                   <button
                     type="button"
@@ -512,8 +639,32 @@ const ClassDetailPage = () => {
                     <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-700 dark:bg-red-900/40 dark:text-red-200">
                       <p className="font-semibold">Confirm close class?</p>
                       <p className="mt-1">
-                        This will cancel the class and prevent further enrollments.
+                        {closeReason === 'completed'
+                          ? 'This finalizes attendance and marks the session as completed.'
+                          : 'This marks the session as cancelled immediately and prevents any further check-ins or enrollments.'}
                       </p>
+                      <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-red-500 dark:text-red-300">
+                        Close as
+                      </label>
+                      <select
+                        value={closeReason}
+                        onChange={(event) =>
+                          setCloseReason(event.target.value === 'completed' ? 'completed' : 'cancelled')
+                        }
+                        className="mt-1 w-full rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 dark:border-red-600 dark:bg-red-900/60 dark:text-red-100"
+                      >
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                      {closeReason === 'completed' ? (
+                        <p className="mt-2 text-[11px] text-red-600 dark:text-red-200/80">
+                          Ensure trainer and members have checked out before completing.
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-[11px] text-red-600 dark:text-red-200/80">
+                          Use cancellation when the session is abandoned or needs to be rescheduled.
+                        </p>
+                      )}
                       <div className="mt-3 flex items-center gap-2">
                         <button
                           type="button"
@@ -575,7 +726,7 @@ const ClassDetailPage = () => {
             </p>
             {!canGenerateQRCode && (
               <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                QR code generation is available only when the class status is Scheduled, Ongoing, or Full.
+                QR code regeneration is available only before any attendance is recorded (Draft or Scheduled).
               </p>
             )}
           </div>

@@ -114,13 +114,28 @@ const ClassesListPage = () => {
         const statusConfig = {
           draft: { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', label: 'Draft' },
           scheduled: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', label: 'Scheduled' },
-          ongoing: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', label: 'Ongoing' },
-          full: { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200', label: 'Full' },
+          waiting_pt: { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200', label: 'Waiting PT' },
+          on_going_waiting_customers: { color: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200', label: 'PT Ready' },
+          on_going: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', label: 'In Session' },
+          waiting_checkout: { color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200', label: 'Waiting Checkout' },
           completed: { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', label: 'Completed' },
+          expired: { color: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200', label: 'Expired' },
+          overdue: { color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', label: 'Overdue' },
           cancelled: { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', label: 'Cancelled' },
+          full: { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200', label: 'Full Capacity' },
         };
 
-        const config = statusConfig[value] || statusConfig.draft;
+        const fallbackLabel = value
+          ? value
+              .split('_')
+              .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+              .join(' ')
+          : 'Unknown';
+
+        const config = statusConfig[value] || {
+          color: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
+          label: fallbackLabel,
+        };
 
         return (
           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${config.color}`}>
@@ -178,9 +193,13 @@ const ClassesListPage = () => {
             <option value="">All Status</option>
             <option value="draft">Draft</option>
             <option value="scheduled">Scheduled</option>
-            <option value="ongoing">Ongoing</option>
-            <option value="full">Full</option>
+            <option value="waiting_pt">Waiting PT</option>
+            <option value="on_going_waiting_customers">PT Ready</option>
+            <option value="on_going">In Session</option>
+            <option value="waiting_checkout">Waiting Checkout</option>
             <option value="completed">Completed</option>
+            <option value="expired">Expired</option>
+            <option value="overdue">Overdue</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
@@ -229,7 +248,16 @@ const ClassesListPage = () => {
       );
     }
 
-    if (classItem.status === 'scheduled' || classItem.status === 'ongoing' || classItem.status === 'full') {
+    const closableStatuses = new Set([
+      'scheduled',
+      'waiting_pt',
+      'on_going_waiting_customers',
+      'on_going',
+      'waiting_checkout',
+      'overdue',
+    ]);
+
+    if (closableStatuses.has(classItem.status)) {
       return (
         <button
           onClick={() => handleCloseClass(classItem)}
