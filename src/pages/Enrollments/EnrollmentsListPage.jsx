@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useFetchClassEnrollments } from '../../hooks/useFetchEnrollments';
 import { useFetchClasses } from '../../hooks/useFetchClasses';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -16,6 +16,7 @@ const formatDateTime = (value) => {
 };
 
 const EnrollmentsListPage = () => {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,6 +94,19 @@ const EnrollmentsListPage = () => {
     );
   };
 
+  const handleViewDetails = (enrollment) => {
+    if (!enrollment) return;
+    navigate(`/enrollments/${enrollment.enrollmentId}`, {
+      state: {
+        enrollment,
+        classInfo: {
+          classId: classMeta?.classId || selectedClassId,
+          className: classMeta?.className || '',
+        },
+      },
+    });
+  };
+
   if (classesLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -151,7 +165,7 @@ const EnrollmentsListPage = () => {
           </button>
           <Link
             to={selectedClassId ? `/classes/${selectedClassId}` : '/classes'}
-            className="inline-flex items-center justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-blue-500 dark:hover:bg-blue-400"
           >
             View Class
           </Link>
@@ -256,6 +270,9 @@ const EnrollmentsListPage = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">
                       Last Update
                     </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
@@ -279,6 +296,15 @@ const EnrollmentsListPage = () => {
                       <td className="px-6 py-4 text-sm">{getStatusBadge(enrollment.status)}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                         {formatDateTime(enrollment.cancelledAt)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleViewDetails(enrollment)}
+                          className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          View
+                        </button>
                       </td>
                     </tr>
                   ))}
