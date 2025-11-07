@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useFetchClassEnrollments } from '../../hooks/useFetchEnrollments';
 import { useFetchClasses } from '../../hooks/useFetchClasses';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -16,6 +16,7 @@ const formatDateTime = (value) => {
 };
 
 const EnrollmentsListPage = () => {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,6 +94,19 @@ const EnrollmentsListPage = () => {
     );
   };
 
+  const handleViewDetails = (enrollment) => {
+    if (!enrollment) return;
+    navigate(`/enrollments/${enrollment.enrollmentId}`, {
+      state: {
+        enrollment,
+        classInfo: {
+          classId: classMeta?.classId || selectedClassId,
+          className: classMeta?.className || '',
+        },
+      },
+    });
+  };
+
   if (classesLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -151,7 +165,7 @@ const EnrollmentsListPage = () => {
           </button>
           <Link
             to={selectedClassId ? `/classes/${selectedClassId}` : '/classes'}
-            className="inline-flex items-center justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-blue-500 dark:hover:bg-blue-400"
           >
             View Class
           </Link>
@@ -251,37 +265,61 @@ const EnrollmentsListPage = () => {
                       Enrolled At
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">
-                      Status
+                      Check-in
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">
-                      Last Update
+                      Check-out
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                      Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
-                  {filteredEnrollments.map((enrollment) => (
-                    <tr key={enrollment.enrollmentId} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 text-sm">
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {enrollment.user?.name || 'Unknown member'}
-                        </p>
-                        <p className="text-gray-500 dark:text-gray-400">ID: {enrollment.user?.userId || 'N/A'}</p>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                        <div className="flex flex-col">
-                          <span>{enrollment.user?.email || 'N/A'}</span>
-                          <span>{enrollment.user?.phone || 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                        {formatDateTime(enrollment.enrolledAt)}
-                      </td>
-                      <td className="px-6 py-4 text-sm">{getStatusBadge(enrollment.status)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                        {formatDateTime(enrollment.cancelledAt)}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredEnrollments.map((enrollment) => {
+                    // support multiple possible field names from backend
+                    const checkinField = enrollment.checkinAt || enrollment.checkedInAt || enrollment.checkInAt || enrollment.checkin_at;
+                    const checkoutField = enrollment.checkoutAt || enrollment.checkedOutAt || enrollment.checkOutAt || enrollment.checkout_at;
+
+                    return (
+                      <tr key={enrollment.enrollmentId || enrollment._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-6 py-4 text-sm">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {enrollment.user?.name || enrollment.user?.fullName || 'Unknown member'}
+                          </p>
+                          <p className="text-gray-500 dark:text-gray-400">ID: {enrollment.user?.userId || enrollment.user?._id || 'N/A'}</p>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                          <div className="flex flex-col">
+                            <span>{enrollment.user?.email || 'N/A'}</span>
+                            <span>{enrollment.user?.phone || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                          {formatDateTime(enrollment.enrolledAt || enrollment.createdAt || enrollment.created_at)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                          {checkinField ? formatDateTime(checkinField) : '—'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                          {checkoutField ? formatDateTime(checkoutField) : '—'}
+                        </td>
+                        <td className="px-6 py-4 text-sm">{getStatusBadge(enrollment.status)}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleViewDetails(enrollment)}
+                            className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

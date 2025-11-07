@@ -2,23 +2,17 @@ import apiClient from './apiClient';
 
 /**
  * Enrollments API endpoints
- * Maps to backend: /api/customer/enrollments/*
+ * These endpoints mirror the backend routes for customer actions.
+ * Admin-specific enrollment reads are handled through classesApi.
  */
 
 export const enrollmentsApi = {
   /**
-   * Fetch all enrollments with pagination and filters
+   * Customer: get enrollments with pagination/filter
    * GET /api/customer/enrollments
    */
   getEnrollments: async (params = {}) => {
-    const {
-      page = 1,
-      limit = 10,
-      classId,
-      userId,
-      status,
-      search,
-    } = params;
+    const { page = 1, limit = 10, classId, userId, status, search } = params;
 
     const queryParams = new URLSearchParams({
       page: page.toString(),
@@ -34,7 +28,7 @@ export const enrollmentsApi = {
   },
 
   /**
-   * Get enrollment details by ID
+   * Customer: get enrollment detail by id
    * GET /api/customer/enrollments/{enrollmentId}
    */
   getEnrollmentById: async (enrollmentId) => {
@@ -43,16 +37,23 @@ export const enrollmentsApi = {
   },
 
   /**
-   * Create a new enrollment
+   * Customer: enroll to a class
    * POST /api/customer/classes/{classId}/enroll
    */
-  createEnrollment: async (enrollmentData) => {
-    const response = await apiClient.post('/api/customer/classes/enroll', enrollmentData);
+  createEnrollment: async ({ classId, enrollmentData }) => {
+    if (!classId) {
+      throw new Error('classId is required to create an enrollment.');
+    }
+
+    const response = await apiClient.post(
+      `/api/customer/classes/${classId}/enroll`,
+      enrollmentData
+    );
     return response.data;
   },
 
   /**
-   * Update enrollment details
+   * Customer: update enrollment
    * PATCH /api/customer/enrollments/{enrollmentId}
    */
   updateEnrollment: async (enrollmentId, enrollmentData) => {
@@ -61,47 +62,56 @@ export const enrollmentsApi = {
   },
 
   /**
-   * Approve enrollment
-   * PATCH /api/customer/enrollments/{enrollmentId}/approve
-   */
-  approveEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/approve`);
-    return response.data;
-  },
-
-  /**
-   * Reject enrollment
-   * PATCH /api/customer/enrollments/{enrollmentId}/reject
-   */
-  rejectEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/reject`);
-    return response.data;
-  },
-
-  /**
-   * Complete enrollment
-   * PATCH /api/customer/enrollments/{enrollmentId}/complete
-   */
-  completeEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/complete`);
-    return response.data;
-  },
-
-  /**
-   * Cancel enrollment
+   * Customer: cancel enrollment
    * PATCH /api/customer/enrollments/{enrollmentId}/cancel
    */
-  cancelEnrollment: async (enrollmentId) => {
-    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/cancel`);
+  cancelEnrollment: async (enrollmentId, payload = {}) => {
+    const response = await apiClient.patch(`/api/customer/enrollments/${enrollmentId}/cancel`, payload);
     return response.data;
   },
 
   /**
-   * Delete enrollment
-   * DELETE /api/customer/enrollments/{enrollmentId}
+   * Customer: check-in class via QR
+   * POST /api/customer/classes/{classId}/check-in
    */
-  deleteEnrollment: async (enrollmentId) => {
-    const response = await apiClient.delete(`/api/customer/enrollments/${enrollmentId}`);
+  checkInToClass: async ({ classId, payload }) => {
+    if (!classId) {
+      throw new Error('classId is required to check in to a class.');
+    }
+
+    const response = await apiClient.post(`/api/customer/classes/${classId}/check-in`, payload);
+    return response.data;
+  },
+
+  /**
+   * Customer: check-out class via QR
+   * POST /api/customer/classes/{classId}/check-out
+   */
+  checkOutFromClass: async ({ classId, payload }) => {
+    if (!classId) {
+      throw new Error('classId is required to check out from a class.');
+    }
+
+    const response = await apiClient.post(`/api/customer/classes/${classId}/check-out`, payload);
+    return response.data;
+  },
+
+  /**
+   * Customer: search available classes for enrollment
+   * GET /api/customer/classes/search
+   */
+  searchAvailableClasses: async (params = {}) => {
+    const queryParams = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, String(value));
+      }
+    });
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/api/customer/classes/search?${queryString}` : '/api/customer/classes/search';
+    const response = await apiClient.get(endpoint);
     return response.data;
   },
 };
