@@ -386,6 +386,45 @@ const ClassDetailPage = () => {
                 </dd>
               </div>
             )}
+            {/* PT Check-in card (for class-level PT status) */}
+            <div className="mt-4">
+              <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">PT Check-in</h3>
+                <div className="mt-2 flex items-center justify-between">
+                  {/* Determine PT checked-in based on class status or explicit timestamp */}
+                  {(() => {
+                    const ptCheckedInStatuses = ['on_going_waiting_customers', 'on_going', 'waiting_pt', 'on_going_waiting_customers'];
+                    const ptChecked = ptCheckedInStatuses.includes(classItem?.status) || Boolean(classItem?.ptCheckInAt || classItem?.staffCheckInAt || classItem?.ptCheckedInAt);
+                    const ptCheckTime = classItem?.ptCheckInAt || classItem?.staffCheckInAt || classItem?.ptCheckedInAt || null;
+
+                    return (
+                      <>
+                        <div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">PT</p>
+                          <p className="mt-1 text-gray-900 dark:text-white font-medium">{classItem?.staffId?.name || classItem?.staff?.name || 'Unassigned'}</p>
+                        </div>
+                        <div className="text-right">
+                          {ptChecked ? (
+                            <div className="inline-flex items-center gap-3">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200">
+                                Checked in
+                              </span>
+                              {ptCheckTime && <div className="text-sm text-gray-600 dark:text-gray-400">{new Date(ptCheckTime).toLocaleString()}</div>}
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-3">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                                Not checked in
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
 
             {classItem.location && (
               <div className="mt-4">

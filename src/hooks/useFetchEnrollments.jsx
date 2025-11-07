@@ -11,17 +11,51 @@ export const useFetchClassEnrollments = ({ classId, page = 1, limit = 10, status
     queryKey: ['class-enrollments', { classId, page, limit, status }],
     queryFn: async () => {
       try {
-        return await classesApi.getClassEnrollments(classId, { page, limit, status });
+        // Primary: admin endpoint
+        const adminResp = await classesApi.getClassEnrollments(classId, { page, limit, status });
+        // Debug: print raw admin response to help identify field names for user/checkin
+        try {
+          console.debug('[DEBUG] admin getClassEnrollments response:', adminResp);
+        } catch (e) {
+          // ignore
+        }
+        return adminResp;
       } catch (error) {
         const statusCode = error?.response?.status;
+        // If admin endpoint not available / returns 404, try customer enrollments endpoint as a fallback
         if (statusCode === 404) {
-          return {
-            success: false,
-            message: error?.response?.data?.message || 'Class not found',
-            data: null,
-            pagination: null,
-            status: statusCode,
-          };
+          try {
+            // enrollmentsApi.getEnrollments expects query params; we pass classId to filter
+            const fallback = await enrollmentsApi.getEnrollments({ page, limit, status, classId });
+            // Debug: print raw fallback response to help identify field names for user/checkin
+            try {
+              console.debug('[DEBUG] fallback enrollments response:', fallback);
+            } catch (e) {
+              // ignore
+            }
+            // Normalize fallback shape similar to admin response
+            return {
+              success: true,
+              message: fallback.message || null,
+              data: {
+                classId,
+                className: fallback.data?.className || '',
+                enrollments: fallback.data || [],
+              },
+              pagination: fallback.pagination || null,
+              status: 200,
+            };
+          } catch (fallbackError) {
+            // If fallback fails, return a friendly 404-like object for UI
+            const fallbackStatus = fallbackError?.response?.status;
+            return {
+              success: false,
+              message: fallbackError?.response?.data?.message || error?.response?.data?.message || 'Class not found',
+              data: null,
+              pagination: null,
+              status: fallbackStatus || statusCode,
+            };
+          }
         }
         throw error;
       }
