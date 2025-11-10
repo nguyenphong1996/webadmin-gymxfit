@@ -107,7 +107,8 @@ export const classesApi = {
 
   /**
    * Get class enrollments
-   * GET /api/admin/classes/{classId}/enrollments
+   * GET /api/customer/classes/{classId}/enrollments
+   * Note: Backend route is under /api/customer but requires admin middleware
    */
   getClassEnrollments: async (classId, params = {}) => {
     const { page = 1, limit = 10, status } = params;
@@ -117,7 +118,7 @@ export const classesApi = {
       ...(status && { status }),
     });
 
-    const response = await apiClient.get(`/api/admin/classes/${classId}/enrollments?${queryParams}`);
+    const response = await apiClient.get(`/api/customer/classes/${classId}/enrollments?${queryParams}`);
     return response.data;
   },
 };
