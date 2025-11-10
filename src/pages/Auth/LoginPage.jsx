@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -15,7 +15,6 @@ const LoginPage = () => {
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
 
   // Get redirect path from location state
@@ -63,7 +62,6 @@ const LoginPage = () => {
       }
 
       setIsOtpSent(true);
-      setOtpSent(true);
       // Show dev OTP in development
       if (import.meta.env.DEV && data.dev_otp) {
         setError(`Development OTP: ${data.dev_otp}`, 'info');
