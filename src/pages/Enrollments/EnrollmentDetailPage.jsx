@@ -1,7 +1,9 @@
 import React from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
 import { useFetchClass } from '../../hooks/useFetchClasses';
+import { enrollmentsApi } from '../../api/enrollmentsApi';
 
 const STATUS_STYLES = {
   active: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -20,9 +22,39 @@ const EnrollmentDetailPage = () => {
   const { enrollmentId } = useParams();
   const navigate = useNavigate();
   const { state } = useLocation();
+  const prefetchedEnrollment = state?.enrollment || null;
+  const prefetchedClassInfo = state?.classInfo || null;
 
-  const enrollment = state?.enrollment || null;
-  const classInfo = state?.classInfo || null;
+  const {
+    data: fetchedEnrollmentResponse,
+    isLoading: enrollmentLoading,
+    error: enrollmentError,
+  } = useQuery({
+    queryKey: ['enrollment-detail', enrollmentId],
+    queryFn: () => enrollmentsApi.getEnrollmentById(enrollmentId),
+    enabled: Boolean(enrollmentId) && !prefetchedEnrollment,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const normalizedFetchedEnrollment =
+    fetchedEnrollmentResponse?.data?.enrollment ||
+    fetchedEnrollmentResponse?.data ||
+    fetchedEnrollmentResponse ||
+    null;
+
+  const enrollment = prefetchedEnrollment || normalizedFetchedEnrollment;
+  const classInfo =
+    prefetchedClassInfo ||
+    (enrollment
+      ? {
+          classId:
+            enrollment.classId ||
+            enrollment.class?.classId ||
+            enrollment.class?._id ||
+            enrollment.class?.id,
+          className: enrollment.className || enrollment.class?.name || '',
+        }
+      : null);
 
   const {
     data: classResponse,
@@ -30,6 +62,30 @@ const EnrollmentDetailPage = () => {
     error: classError,
   } = useFetchClass(classInfo?.classId);
   const classDetails = classResponse?.data || null;
+
+  if (enrollmentLoading && !prefetchedEnrollment) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (enrollmentError && !enrollment) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+        <p className="font-medium">Không thể tải dữ liệu enrollment.</p>
+        <p className="mt-2">{enrollmentError?.response?.data?.message || enrollmentError.message}</p>
+        <button
+          onClick={() => navigate('/enrollments')}
+          className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Quay lại danh sách
+        </button>
+      </div>
+    );
+  }
 
   if (!enrollment) {
     return (

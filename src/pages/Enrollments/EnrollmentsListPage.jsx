@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useFetchClassEnrollments } from '../../hooks/useFetchEnrollments';
-import { useFetchClasses } from '../../hooks/useFetchClasses';
+import { useFetchClasses, useFetchClass } from '../../hooks/useFetchClasses';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 const STATUS_LABELS = {
@@ -10,9 +10,41 @@ const STATUS_LABELS = {
   cancelled: { label: 'Cancelled', style: 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-200' },
 };
 
+const normalizeDate = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'object' && typeof value.seconds === 'number') {
+    const dateFromSeconds = new Date(value.seconds * 1000);
+    return Number.isNaN(dateFromSeconds.getTime()) ? null : dateFromSeconds;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+};
+
+const pickValidDateValue = (candidates = []) => {
+  for (const candidate of candidates) {
+    const normalized = normalizeDate(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return null;
+};
+
 const formatDateTime = (value) => {
-  if (!value) return 'N/A';
-  return new Date(value).toLocaleString();
+  const date = normalizeDate(value);
+  if (!date) return 'N/A';
+  return date.toLocaleString();
 };
 
 const EnrollmentsListPage = () => {
@@ -51,39 +83,326 @@ const EnrollmentsListPage = () => {
     status: statusFilter || undefined,
   });
 
+  const {
+    data: selectedClassResponse,
+  } = useFetchClass(selectedClassId);
+  const selectedClassDetails = selectedClassResponse?.data || null;
+
+  const rawData = enrollmentsResponse?.data;
   const enrollments = useMemo(() => {
-    if (!enrollmentsResponse?.data?.enrollments) {
+    if (Array.isArray(rawData)) {
+      return rawData;
+    }
+    if (!rawData?.enrollments) {
       return [];
     }
-    return enrollmentsResponse.data.enrollments;
-  }, [enrollmentsResponse]);
+    return rawData.enrollments;
+  }, [rawData]);
 
-  const classMeta = enrollmentsResponse?.data;
+  const classMeta = useMemo(() => {
+    if (Array.isArray(rawData)) {
+      return {
+        classId: selectedClassId,
+        className: selectedClassDetails?.name || '',
+        capacity: selectedClassDetails?.capacity,
+      };
+    }
+    return rawData;
+  }, [rawData, selectedClassDetails, selectedClassId]);
   const pagination = enrollmentsResponse?.pagination || {};
   const enrollmentsMessage = enrollmentsResponse?.message;
   const enrollmentsStatus = enrollmentsResponse?.status;
 
+  const rosterIndex = useMemo(() => {
+    const map = new Map();
+    if (!selectedClassDetails) {
+      return map;
+    }
+
+    const candidateLists = selectedClassDetails
+      ? [
+          selectedClassDetails.enrollments,
+          selectedClassDetails.customers,
+          selectedClassDetails.members,
+          selectedClassDetails.participants,
+          selectedClassDetails.registeredMembers,
+          selectedClassDetails.attendees,
+        ]
+      : [];
+
+    const registerItem = (identifier, item) => {
+      if (identifier === null || identifier === undefined) {
+        return;
+      }
+      map.set(identifier, item);
+      const normalized =
+        typeof identifier === 'string'
+          ? identifier
+          : typeof identifier === 'number'
+            ? identifier.toString()
+            : typeof identifier?.toString === 'function'
+              ? identifier.toString()
+              : null;
+      if (normalized) {
+        map.set(normalized, item);
+      }
+    };
+
+    candidateLists.forEach((list) => {
+      if (!Array.isArray(list)) {
+        return;
+      }
+      list.forEach((item) => {
+        const identifiers = [
+          item?.enrollmentId,
+          item?._id,
+          item?.id,
+          item?.userId,
+          item?.customerId,
+          item?.customerId?._id,
+          item?.customerId?.id,
+        ];
+        identifiers.forEach((identifier) => registerItem(identifier, item));
+      });
+    });
+
+    return map;
+  }, [selectedClassDetails]);
+
+  const getRosterMatch = useCallback(
+    (enrollment) => {
+      if (!enrollment || rosterIndex.size === 0) {
+        return null;
+      }
+      const candidateValues = [
+        enrollment.enrollmentId,
+        enrollment._id,
+        enrollment.id,
+        enrollment.userId,
+        enrollment.customerId,
+        enrollment.user?.userId,
+        enrollment.user?._id,
+        enrollment.customer?.userId,
+        enrollment.customer?._id,
+        enrollment.customerId?._id,
+        enrollment.customerId?.id,
+      ];
+
+      for (const value of candidateValues) {
+        if (!value) continue;
+        if (rosterIndex.has(value)) {
+          return rosterIndex.get(value);
+        }
+        const normalized =
+          typeof value === 'string'
+            ? value
+            : typeof value === 'number'
+              ? value.toString()
+              : typeof value?.toString === 'function'
+                ? value.toString()
+                : null;
+        if (normalized && rosterIndex.has(normalized)) {
+          return rosterIndex.get(normalized);
+        }
+      }
+      return null;
+    },
+    [rosterIndex]
+  );
+
+  const resolveParticipant = useCallback(
+    (enrollment) => {
+      if (!enrollment) {
+        return {
+          name: 'Unknown member',
+          email: 'N/A',
+          phone: 'N/A',
+          id: 'N/A',
+          searchTokens: [],
+        };
+      }
+
+      const rosterMatch = getRosterMatch(enrollment);
+      const candidateSources = [
+        enrollment.user,
+        enrollment.customer,
+        enrollment.customerId,
+        enrollment.member,
+        enrollment.profile,
+        enrollment.customerProfile,
+        enrollment.customerInfo,
+        enrollment.userInfo,
+        enrollment.attendee,
+        rosterMatch,
+      ];
+
+      const selectedSource = candidateSources.find(
+        (candidate) =>
+          candidate &&
+          (candidate.name ||
+            candidate.fullName ||
+            candidate.displayName ||
+            candidate.email ||
+            candidate.phone)
+      );
+
+      const source = selectedSource || {};
+
+      const rawName =
+        source.name ||
+        source.fullName ||
+        source.displayName ||
+        enrollment.userName ||
+        enrollment.customerName ||
+        enrollment.fullName ||
+        '';
+
+      const rawEmail =
+        source.email ||
+        source.contactEmail ||
+        source.userEmail ||
+        source.contact?.email ||
+        enrollment.userEmail ||
+        enrollment.customerEmail ||
+        '';
+
+      const rawPhone =
+        source.phone ||
+        source.mobile ||
+        source.contactPhone ||
+        source.contact?.phone ||
+        enrollment.userPhone ||
+        enrollment.customerPhone ||
+        '';
+
+      const identifier =
+        source.userId ||
+        source._id ||
+        source.id ||
+        source.customerId ||
+        enrollment.userId ||
+        enrollment.customerId ||
+        enrollment.enrollmentId ||
+        enrollment._id ||
+        'N/A';
+
+      const safeName = rawName || 'Unknown member';
+
+      const identifierToken =
+        typeof identifier === 'string'
+          ? identifier
+          : typeof identifier === 'number'
+            ? identifier.toString()
+            : identifier && typeof identifier.toString === 'function'
+              ? identifier.toString()
+              : null;
+
+      const searchTokens = [safeName, rawEmail, rawPhone];
+      if (identifierToken) {
+        searchTokens.push(identifierToken);
+      }
+
+      return {
+        name: safeName,
+        email: rawEmail || 'N/A',
+        phone: rawPhone || 'N/A',
+        id: identifier || 'N/A',
+        searchTokens: searchTokens.filter(Boolean),
+      };
+    },
+    [getRosterMatch]
+  );
+
+  const resolveAttendance = useCallback(
+    (enrollment) => {
+      if (!enrollment) {
+        return { checkInTime: null, checkOutTime: null };
+      }
+      const rosterMatch = getRosterMatch(enrollment);
+      const attendanceSources = [
+        enrollment.attendance,
+        enrollment.attendanceRecord,
+        enrollment.latestAttendance,
+        enrollment.classAttendance,
+        enrollment.customerAttendance,
+        rosterMatch?.attendance,
+        rosterMatch?.attendanceRecord,
+        rosterMatch?.latestAttendance,
+      ].filter(Boolean);
+
+      const checkInCandidates = [
+        enrollment.checkinAt,
+        enrollment.checkInAt,
+        enrollment.checkedInAt,
+        enrollment.checkin_at,
+        enrollment.check_in_at,
+        enrollment.checkInTime,
+        enrollment.check_in_time,
+      ];
+
+      const checkOutCandidates = [
+        enrollment.checkoutAt,
+        enrollment.checkOutAt,
+        enrollment.checkedOutAt,
+        enrollment.checkout_at,
+        enrollment.check_out_at,
+        enrollment.checkOutTime,
+        enrollment.check_out_time,
+      ];
+
+      attendanceSources.forEach((source) => {
+        checkInCandidates.push(
+          source.checkinAt,
+          source.checkInAt,
+          source.checkedInAt,
+          source.checkInTime,
+          source.check_in_time,
+          source.check_in_at
+        );
+        checkOutCandidates.push(
+          source.checkoutAt,
+          source.checkOutAt,
+          source.checkedOutAt,
+          source.checkOutTime,
+          source.check_out_time,
+          source.check_out_at
+        );
+      });
+
+      return {
+        checkInTime: pickValidDateValue(checkInCandidates),
+        checkOutTime: pickValidDateValue(checkOutCandidates),
+      };
+    },
+    [getRosterMatch]
+  );
+
   const filteredEnrollments = useMemo(() => {
     if (!searchTerm) return enrollments;
     const term = searchTerm.toLowerCase();
-    return enrollments.filter(({ user }) => {
-      const nameMatch = user?.name?.toLowerCase().includes(term);
-      const emailMatch = user?.email?.toLowerCase().includes(term);
-      const phoneMatch = user?.phone?.toLowerCase().includes(term);
-      return nameMatch || emailMatch || phoneMatch;
+    return enrollments.filter((enrollment) => {
+      const participant = resolveParticipant(enrollment);
+      return participant.searchTokens.some((token) =>
+        token.toLowerCase().includes(term)
+      );
     });
-  }, [enrollments, searchTerm]);
+  }, [enrollments, searchTerm, resolveParticipant]);
 
-  const statusSummary = useMemo(() => {
+  const attendanceSummary = useMemo(() => {
     return enrollments.reduce(
       (acc, enrollment) => {
-        const key = enrollment.status || 'unknown';
-        acc[key] = (acc[key] || 0) + 1;
+        const attendance = resolveAttendance(enrollment);
+        if (attendance.checkInTime) {
+          acc.checkedIn += 1;
+        }
+        if (attendance.checkOutTime) {
+          acc.checkedOut += 1;
+        }
         return acc;
       },
-      {}
+      { checkedIn: 0, checkedOut: 0 }
     );
-  }, [enrollments]);
+  }, [enrollments, resolveAttendance]);
 
   const getStatusBadge = (status) => {
     const config = STATUS_LABELS[status] || STATUS_LABELS.active;
@@ -96,7 +415,13 @@ const EnrollmentsListPage = () => {
 
   const handleViewDetails = (enrollment) => {
     if (!enrollment) return;
-    navigate(`/enrollments/${enrollment.enrollmentId}`, {
+    const enrollmentId = enrollment.enrollmentId || enrollment._id;
+    if (!enrollmentId) {
+      console.warn('Missing enrollment identifier', enrollment);
+      return;
+    }
+
+    navigate(`/enrollments/${enrollmentId}`, {
       state: {
         enrollment,
         classInfo: {
@@ -106,6 +431,34 @@ const EnrollmentsListPage = () => {
       },
     });
   };
+
+  const rawRegisteredCount =
+    selectedClassDetails?.currentEnrollment ??
+    enrollmentsResponse?.pagination?.total ??
+    enrollments.length;
+  const registeredCount =
+    typeof rawRegisteredCount === 'number'
+      ? rawRegisteredCount
+      : Number(rawRegisteredCount);
+  const normalizedRegisteredCount = Number.isFinite(registeredCount)
+    ? registeredCount
+    : enrollments.length;
+
+  const rawCapacity = selectedClassDetails?.capacity ?? classMeta?.capacity ?? null;
+  const capacityNumber =
+    typeof rawCapacity === 'number' ? rawCapacity : Number(rawCapacity);
+  const classCapacity = Number.isFinite(capacityNumber) ? capacityNumber : null;
+
+  const availableSlots =
+    typeof classCapacity === 'number'
+      ? Math.max(classCapacity - normalizedRegisteredCount, 0)
+      : null;
+
+  const resolvedClassName =
+    classMeta?.className ||
+    selectedClassDetails?.name ||
+    classOptions.find((classItem) => classItem._id === selectedClassId)?.name ||
+    '';
 
   if (classesLoading) {
     return (
@@ -223,12 +576,28 @@ const EnrollmentsListPage = () => {
 
       {classMeta && (
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            {classMeta.className}
-          </h3>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Showing enrollments for the selected class.
-          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {resolvedClassName || 'Selected class'}
+              </h3>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Showing enrollments for the selected class.
+              </p>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              <p className="font-semibold text-gray-900 dark:text-white">Members</p>
+              <p className="text-base font-bold">
+                {normalizedRegisteredCount}
+                {classCapacity ? ` / ${classCapacity}` : ''}
+              </p>
+              {availableSlots !== null && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {availableSlots} slots remaining
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -280,22 +649,23 @@ const EnrollmentsListPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
                   {filteredEnrollments.map((enrollment) => {
-                    // support multiple possible field names from backend
-                    const checkinField = enrollment.checkinAt || enrollment.checkedInAt || enrollment.checkInAt || enrollment.checkin_at;
-                    const checkoutField = enrollment.checkoutAt || enrollment.checkedOutAt || enrollment.checkOutAt || enrollment.checkout_at;
+                    const participant = resolveParticipant(enrollment);
+                    const attendance = resolveAttendance(enrollment);
+                    const checkinField = attendance.checkInTime;
+                    const checkoutField = attendance.checkOutTime;
 
                     return (
                       <tr key={enrollment.enrollmentId || enrollment._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-6 py-4 text-sm">
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {enrollment.user?.name || enrollment.user?.fullName || 'Unknown member'}
+                            {participant.name}
                           </p>
-                          <p className="text-gray-500 dark:text-gray-400">ID: {enrollment.user?.userId || enrollment.user?._id || 'N/A'}</p>
+                          <p className="text-gray-500 dark:text-gray-400">ID: {participant.id}</p>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                           <div className="flex flex-col">
-                            <span>{enrollment.user?.email || 'N/A'}</span>
-                            <span>{enrollment.user?.phone || 'N/A'}</span>
+                            <span>{participant.email}</span>
+                            <span>{participant.phone}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
@@ -355,16 +725,19 @@ const EnrollmentsListPage = () => {
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-sm text-gray-600 dark:text-gray-400">Total (this page)</p>
-          <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">{filteredEnrollments.length}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Registered</p>
+          <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
+            {normalizedRegisteredCount}
+            {classCapacity ? ` / ${classCapacity}` : ''}
+          </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-sm text-gray-600 dark:text-gray-400">Active</p>
-          <p className="mt-2 text-3xl font-semibold text-blue-600">{statusSummary.active || 0}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Checked-in</p>
+          <p className="mt-2 text-3xl font-semibold text-green-600">{attendanceSummary.checkedIn}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-sm text-gray-600 dark:text-gray-400">Cancelled</p>
-          <p className="mt-2 text-3xl font-semibold text-rose-600">{statusSummary.cancelled || 0}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Checked-out</p>
+          <p className="mt-2 text-3xl font-semibold text-emerald-600">{attendanceSummary.checkedOut}</p>
         </div>
       </div>
     </div>

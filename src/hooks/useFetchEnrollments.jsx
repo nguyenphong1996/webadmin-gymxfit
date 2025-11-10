@@ -13,11 +13,8 @@ export const useFetchClassEnrollments = ({ classId, page = 1, limit = 10, status
       try {
         // Primary: admin endpoint
         const adminResp = await classesApi.getClassEnrollments(classId, { page, limit, status });
-        // Debug: print raw admin response to help identify field names for user/checkin
-        try {
+        if (import.meta.env?.DEV) {
           console.debug('[DEBUG] admin getClassEnrollments response:', adminResp);
-        } catch (e) {
-          // ignore
         }
         return adminResp;
       } catch (error) {
@@ -27,11 +24,8 @@ export const useFetchClassEnrollments = ({ classId, page = 1, limit = 10, status
           try {
             // enrollmentsApi.getEnrollments expects query params; we pass classId to filter
             const fallback = await enrollmentsApi.getEnrollments({ page, limit, status, classId });
-            // Debug: print raw fallback response to help identify field names for user/checkin
-            try {
+            if (import.meta.env?.DEV) {
               console.debug('[DEBUG] fallback enrollments response:', fallback);
-            } catch (e) {
-              // ignore
             }
             // Normalize fallback shape similar to admin response
             return {

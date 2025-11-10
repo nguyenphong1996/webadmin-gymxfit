@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useFetchClasses, useOpenClass, useCloseClass } from '../../hooks/useFetchClasses';
+import { useFetchClasses } from '../../hooks/useFetchClasses';
 import TableWithActions from '../../components/common/TableWithActions';
 import {
   PlusIcon,
   EyeIcon,
   PencilIcon,
-  PlayIcon,
-  StopIcon,
 } from '@heroicons/react/24/outline';
 
 const ClassesListPage = () => {
@@ -25,9 +23,6 @@ const ClassesListPage = () => {
     error,
     refetch,
   } = useFetchClasses(filters);
-
-  const openClassMutation = useOpenClass();
-  const closeClassMutation = useCloseClass();
 
   // Table columns definition
   const columns = [
@@ -156,29 +151,6 @@ const ClassesListPage = () => {
     window.location.href = `/classes/${classItem._id}/edit`;
   };
 
-  const handleOpenClass = async (classItem) => {
-    try {
-      await openClassMutation.mutateAsync(classItem._id);
-      refetch();
-    } catch (error) {
-      console.error('Failed to open class:', error);
-      alert('Failed to open class. Please try again.');
-    }
-  };
-
-  const handleCloseClass = async (classItem) => {
-    const reason = prompt('Enter reason for closing class (completed/cancelled):', 'completed');
-    if (reason && (reason === 'completed' || reason === 'cancelled')) {
-      try {
-        await closeClassMutation.mutateAsync({ classId: classItem._id, reason });
-        refetch();
-      } catch (error) {
-        console.error('Failed to close class:', error);
-        alert('Failed to close class. Please try again.');
-      }
-    }
-  };
-
   // Filter renderer
   const renderFilters = (setShowFilters) => {
     return (
@@ -232,44 +204,6 @@ const ClassesListPage = () => {
         </div>
       </>
     );
-  };
-
-  // Additional action buttons for classes
-  const renderAdditionalActions = (classItem) => {
-    if (classItem.status === 'draft') {
-      return (
-        <button
-          onClick={() => handleOpenClass(classItem)}
-          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-          title="Open Class"
-        >
-          <PlayIcon className="h-4 w-4" />
-        </button>
-      );
-    }
-
-    const closableStatuses = new Set([
-      'scheduled',
-      'waiting_pt',
-      'on_going_waiting_customers',
-      'on_going',
-      'waiting_checkout',
-      'overdue',
-    ]);
-
-    if (closableStatuses.has(classItem.status)) {
-      return (
-        <button
-          onClick={() => handleCloseClass(classItem)}
-          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-          title="Close Class"
-        >
-          <StopIcon className="h-4 w-4" />
-        </button>
-      );
-    }
-
-    return null;
   };
 
   if (error) {
