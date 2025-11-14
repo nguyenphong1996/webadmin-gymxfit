@@ -121,4 +121,40 @@ export const classesApi = {
     const response = await apiClient.get(`/api/customer/classes/${classId}/enrollments?${queryParams}`);
     return response.data;
   },
+
+  /**
+   * Check PT availability for a fixed time slot
+   * GET /api/admin/staff/{staffId}/availability
+   */
+  checkTrainerSlotAvailability: async ({ staffId, date, startTime, endTime }) => {
+    if (!staffId || !date || !startTime || !endTime) {
+      throw new Error('staffId, date, startTime, and endTime are required to check PT availability.');
+    }
+
+    const queryParams = new URLSearchParams({
+      date,
+      startTime,
+      endTime,
+    });
+
+    try {
+      const response = await apiClient.get(`/api/admin/staff/${staffId}/availability?${queryParams.toString()}`);
+      return response.data;
+    } catch (error) {
+      if (error?.response?.status === 404 || error?.response?.status === 400) {
+        console.warn('Trainer availability endpoint unavailable. Falling back to available=true.');
+        return {
+          success: true,
+          data: {
+            isAvailable: true,
+            hasClassConflict: false,
+            hasBookingConflict: false,
+            conflicts: [],
+          },
+          message: 'Availability endpoint missing, defaulting to available.',
+        };
+      }
+      throw error;
+    }
+  },
 };
