@@ -38,11 +38,13 @@ export const useFetchStaffByCategory = (category) => {
         const response = await apiClient.get('/api/admin/staff?limit=100');
         console.log(`All staff:`, response.data);
         
-        // Filter staff that have the category skill
-        const filtered = response.data?.data?.filter(staff => 
-          staff.skills?.includes(category)
-        ) || [];
-        
+        // Filter staff that have the category skill and are active
+        const filtered = (response.data?.data || []).filter((staff) => {
+          const hasSkill = staff.skills?.includes(category);
+          const isActive = staff.isActive !== false;
+          return hasSkill && isActive;
+        });
+
         console.log(`Staff for category ${category}:`, filtered);
         return { data: filtered };
       } catch (error) {
