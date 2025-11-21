@@ -106,6 +106,9 @@ const ClassCreatePage = () => {
     endTime: '',
     staffId: '',
     location: '',
+    isCustomTime: false,
+    customStartTime: '',
+    customEndTime: '',
   });
   const [errors, setErrors] = useState({});
   const [slotAvailability, setSlotAvailability] = useState(() => buildDefaultSlotAvailability());
@@ -149,6 +152,33 @@ const ClassCreatePage = () => {
         };
       }
 
+      if (name === 'isCustomTime') {
+        return {
+          ...prev,
+          isCustomTime: value === 'custom',
+          timeSlotId: '',
+          customStartTime: '',
+          customEndTime: '',
+          startTime: '',
+          endTime: '',
+        };
+      }
+
+      if ((name === 'customStartTime' || name === 'customEndTime') && prev.isCustomTime) {
+        const nextValues = {
+          ...prev,
+          [name]: value,
+        };
+        if (nextValues.customStartTime && nextValues.customEndTime && nextValues.date) {
+          nextValues.startTime = buildSlotDateTime(nextValues.date, nextValues.customStartTime);
+          nextValues.endTime = buildSlotDateTime(nextValues.date, nextValues.customEndTime);
+        } else {
+          nextValues.startTime = '';
+          nextValues.endTime = '';
+        }
+        return nextValues;
+      }
+
       if (name === 'date' || name === 'timeSlotId') {
         const nextValues = {
           ...prev,
@@ -160,7 +190,7 @@ const ClassCreatePage = () => {
         if (resolvedSlot && dateToUse) {
           nextValues.startTime = buildSlotDateTime(dateToUse, resolvedSlot.start);
           nextValues.endTime = buildSlotDateTime(dateToUse, resolvedSlot.end);
-        } else {
+        } else if (!prev.isCustomTime) {
           nextValues.startTime = '';
           nextValues.endTime = '';
         }
@@ -190,6 +220,10 @@ const ClassCreatePage = () => {
         next.startTime = '';
         next.endTime = '';
       }
+      if ((name === 'customStartTime' || name === 'customEndTime') && (next.customStartTime || next.customEndTime)) {
+        next.customStartTime = '';
+        next.customEndTime = '';
+      }
       if (next.submit) {
         next.submit = '';
       }
@@ -204,7 +238,7 @@ const ClassCreatePage = () => {
   };
 
   useEffect(() => {
-    if (!canEvaluateAvailability) {
+    if (formData.isCustomTime || !canEvaluateAvailability) {
       setIsCheckingSlots(false);
       return;
     }
@@ -293,7 +327,7 @@ const ClassCreatePage = () => {
     return () => {
       isCancelled = true;
     };
-  }, [canEvaluateAvailability, formData.date, formData.staffId]);
+  }, [canEvaluateAvailability, formData.date, formData.staffId, formData.isCustomTime]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -325,26 +359,54 @@ const ClassCreatePage = () => {
       }
     }
 
-    if (!formData.timeSlotId) {
-      newErrors.timeSlotId = 'Khung giờ cố định là bắt buộc';
-    }
+    if (formData.isCustomTime) {
+      if (!formData.customStartTime) {
+        newErrors.customStartTime = 'Start time is required';
+      }
 
-    const blockingSlot = formData.timeSlotId ? slotAvailability[formData.timeSlotId] : null;
-    if (blockingSlot?.isBlocked && !allowBusySlotSelection) {
-      newErrors.timeSlotId = 'PT đã bận ca này (class khác hoặc booking riêng)';
+      if (!formData.customEndTime) {
+        newErrors.customEndTime = 'End time is required';
+      }
+
+      if (formData.customStartTime && formData.customEndTime && formData.startTime && formData.endTime) {
+        const start = new Date(formData.startTime);
+        const end = new Date(formData.endTime);
+        if (end <= start) {
+          newErrors.customEndTime = 'End time must be after start time';
+        } else {
+          const durationMinutes = (end - start) / (1000 * 60);
+          if (durationMinutes < MIN_CLASS_DURATION_MINUTES) {
+            newErrors.customEndTime = `Class duration must be at least ${MIN_CLASS_DURATION_MINUTES} minutes`;
+          }
+        }
+        if (start <= new Date()) {
+          newErrors.customStartTime = 'Start time must be in the future';
+        }
+      }
+    } else {
+      if (!formData.timeSlotId) {
+        newErrors.timeSlotId = 'Khung giờ cố định là bắt buộc';
+      }
+
+      const blockingSlot = formData.timeSlotId ? slotAvailability[formData.timeSlotId] : null;
+      if (blockingSlot?.isBlocked && !allowBusySlotSelection) {
+        newErrors.timeSlotId = 'PT đã bận ca này (class khác hoặc booking riêng)';
+      }
+
+      if (formData.startTime && new Date(formData.startTime) <= new Date()) {
+        newErrors.startTime = 'Start time must be in the future';
+      }
     }
 
     if (!formData.startTime) {
       newErrors.startTime = 'Start time is required';
-    } else if (new Date(formData.startTime) <= new Date()) {
-      newErrors.startTime = 'Start time must be in the future';
     }
 
     if (!formData.endTime) {
       newErrors.endTime = 'End time is required';
     }
 
-    if (formData.startTime && formData.endTime) {
+    if (formData.startTime && formData.endTime && !formData.isCustomTime) {
       const start = new Date(formData.startTime);
       const end = new Date(formData.endTime);
       if (end <= start) {
@@ -555,73 +617,144 @@ const ClassCreatePage = () => {
                 <div>
                   <div className="flex items-center justify-between">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Ca cố định *
+                      Thời gian diễn ra *
                     </label>
-                    {canEvaluateAvailability && isCheckingSlots && (
+                    {!formData.isCustomTime && canEvaluateAvailability && isCheckingSlots && (
                       <span className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-transparent"></span>
                         Đang kiểm tra
                       </span>
                     )}
                   </div>
-                  <select
-                    name="timeSlotId"
-                    value={formData.timeSlotId}
-                    onChange={handleInputChange}
-                    disabled={shouldDisableSlotSelect}
-                    className={`mt-1 block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
-                      errors.timeSlotId ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  >
-                    <option value="">{shouldDisableSlotSelect ? 'Chọn ngày trước' : 'Chọn ca'}</option>
-                    {CLASS_TIME_SLOTS.map((slot) => {
-                      const slotState = slotAvailability[slot.id];
-                      const slotBlocked =
-                        canEvaluateAvailability && slotState?.isBlocked && !allowBusySlotSelection;
-                      return (
-                        <option key={slot.id} value={slot.id} disabled={slotBlocked}>
-                          {slot.label}
-                          {slotState?.isBlocked && canEvaluateAvailability ? ' · PT bận' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {errors.timeSlotId && (
-                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.timeSlotId}</p>
-                  )}
-                  {!shouldDisableSlotSelect && !canEvaluateAvailability && (
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      Chọn PT để kiểm tra lịch bận trước khi khoá ca.
-                    </p>
-                  )}
-                  {availabilityError && (
-                    <p className="mt-2 text-xs text-red-600 dark:text-red-400">{availabilityError}</p>
-                  )}
-                  {hasBusySlots && (
-                    <label className="mt-2 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+                  <div className="mt-2 flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
-                        type="checkbox"
-                        className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 dark:border-amber-500"
-                        checked={allowBusySlotSelection}
-                        onChange={(event) => setAllowBusySlotSelection(event.target.checked)}
+                        type="radio"
+                        name="isCustomTime"
+                        value="fixed"
+                        checked={!formData.isCustomTime}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      Cho phép chọn ca PT đang bận (sẽ hiển thị cảnh báo trước khi tạo)
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Ca cố định</span>
                     </label>
-                  )}
-                  {selectedSlotIsBlocked && (
-                    <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
-                      <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium">
-                          {selectedSlotInfo?.message ||
-                            'PT đã bận ca này (class khác hoặc booking riêng).'}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="isCustomTime"
+                        value="custom"
+                        checked={formData.isCustomTime}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Giờ tự do</span>
+                    </label>
+                  </div>
+
+                  {!formData.isCustomTime ? (
+                    <>
+                      <select
+                        name="timeSlotId"
+                        value={formData.timeSlotId}
+                        onChange={handleInputChange}
+                        disabled={shouldDisableSlotSelect}
+                        className={`mt-3 block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+                          errors.timeSlotId ? 'border-red-300' : 'border-gray-300'
+                        }`}
+                      >
+                        <option value="">{shouldDisableSlotSelect ? 'Chọn ngày trước' : 'Chọn ca'}</option>
+                        {CLASS_TIME_SLOTS.map((slot) => {
+                          const slotState = slotAvailability[slot.id];
+                          const slotBlocked =
+                            canEvaluateAvailability && slotState?.isBlocked && !allowBusySlotSelection;
+                          return (
+                            <option key={slot.id} value={slot.id} disabled={slotBlocked}>
+                              {slot.label}
+                              {slotState?.isBlocked && canEvaluateAvailability ? ' · PT bận' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {errors.timeSlotId && (
+                        <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.timeSlotId}</p>
+                      )}
+                      {!shouldDisableSlotSelect && !canEvaluateAvailability && (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          Chọn PT để kiểm tra lịch bận trước khi khoá ca.
                         </p>
-                        <p className="text-xs">
-                          {allowBusySlotSelection
-                            ? 'Bạn đã chọn tiếp tục tạo lớp dù PT đang bận.'
-                            : 'Chọn ca khác hoặc bật tuỳ chọn trên để chấp nhận tạo lớp ở ca này.'}
-                        </p>
+                      )}
+                      {availabilityError && (
+                        <p className="mt-2 text-xs text-red-600 dark:text-red-400">{availabilityError}</p>
+                      )}
+                      {hasBusySlots && (
+                        <label className="mt-2 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+                          <input
+                            type="checkbox"
+                            className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 dark:border-amber-500"
+                            checked={allowBusySlotSelection}
+                            onChange={(event) => setAllowBusySlotSelection(event.target.checked)}
+                          />
+                          Cho phép chọn ca PT đang bận (sẽ hiển thị cảnh báo trước khi tạo)
+                        </label>
+                      )}
+                      {selectedSlotIsBlocked && (
+                        <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+                          <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
+                          <div>
+                            <p className="font-medium">
+                              {selectedSlotInfo?.message ||
+                                'PT đã bận ca này (class khác hoặc booking riêng).'}
+                            </p>
+                            <p className="text-xs">
+                              {allowBusySlotSelection
+                                ? 'Bạn đã chọn tiếp tục tạo lớp dù PT đang bận.'
+                                : 'Chọn ca khác hoặc bật tuỳ chọn trên để chấp nhận tạo lớp ở ca này.'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Giờ bắt đầu *
+                          </label>
+                          <input
+                            type="time"
+                            name="customStartTime"
+                            value={formData.customStartTime}
+                            onChange={handleInputChange}
+                            className={`mt-1 block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+                              errors.customStartTime ? 'border-red-300' : 'border-gray-300'
+                            }`}
+                          />
+                          {errors.customStartTime && (
+                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.customStartTime}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Giờ kết thúc *
+                          </label>
+                          <input
+                            type="time"
+                            name="customEndTime"
+                            value={formData.customEndTime}
+                            onChange={handleInputChange}
+                            className={`mt-1 block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+                              errors.customEndTime ? 'border-red-300' : 'border-gray-300'
+                            }`}
+                          />
+                          {errors.customEndTime && (
+                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.customEndTime}</p>
+                          )}
+                        </div>
                       </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Thời gian class sẽ được tạo dựa trên ngày bạn chọn kết hợp với giờ bắt đầu và kết thúc
+                      </p>
                     </div>
                   )}
                 </div>
