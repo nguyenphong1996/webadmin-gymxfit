@@ -416,7 +416,7 @@ const ClassCreatePage = () => {
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100">
             <p className="font-semibold">Nguyên tắc xếp ca</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>Ca chuẩn: 08-10 · 10-12 · 14-16 · 16-18 · 18-20 (nghỉ trưa 12-14h).</li>
+              <li>Ca chuẩn: 08-10 · 10-12 · 12-14 · 14-16 · 16-18 · 18-20 (không nghỉ trưa).</li>
               <li>Khi chọn ca và PT, hệ thống tự khóa ca đó khỏi booking riêng của khách hàng.</li>
               <li>Nếu PT đã có lớp hoặc lịch coaching trùng ca, mục chọn ca sẽ báo “PT bận”.</li>
             </ul>

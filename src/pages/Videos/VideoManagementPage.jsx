@@ -289,7 +289,7 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
   const uploadMutation = useUploadVideo();
   const { reset: resetUploadMutation } = uploadMutation;
   const [uploadProgress, setUploadProgress] = useState(0);
-  const isSubmittingRef = React.useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadPhase, setUploadPhase] = useState('idle');
 
   const { data: subData } = useFetchVideoSubcategories(form.category, {
@@ -308,7 +308,7 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
       setLocalError('');
       resetUploadMutation();
       setUploadProgress(0);
-      isSubmittingRef.current = false;
+      setIsSubmitting(false);
       setUploadPhase('idle');
     }
   }, [isOpen, initialForm, resetUploadMutation]);
@@ -383,7 +383,7 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (isSubmittingRef.current || uploadMutation.isLoading) {
+    if (isSubmitting || uploadMutation.isLoading) {
       return;
     }
 
@@ -421,7 +421,7 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
     payload.append('video', form.file);
 
     try {
-      isSubmittingRef.current = true;
+      setIsSubmitting(true);
       setUploadProgress(0);
       setUploadPhase('uploading');
       const result = await uploadMutation.mutateAsync({
@@ -455,7 +455,7 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
       setLocalError(message);
       setUploadProgress(0);
     } finally {
-      isSubmittingRef.current = false;
+      setIsSubmitting(false);
       setUploadPhase((prev) => (prev === 'processing' ? 'idle' : prev));
     }
   };
@@ -646,10 +646,10 @@ const VideoUploadModal = ({ isOpen, onClose, onSuccess }) => {
             </button>
             <button
               type="submit"
-              disabled={uploadMutation.isLoading}
+              disabled={uploadMutation.isLoading || isSubmitting}
               className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
             >
-              {uploadMutation.isLoading && (
+              {(uploadMutation.isLoading || isSubmitting) && (
                 <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
               Upload
