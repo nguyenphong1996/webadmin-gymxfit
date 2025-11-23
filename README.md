@@ -211,7 +211,7 @@ VITE_APP_VERSION=1.0.0
 
 ### Production (`.env.production`)
 ```env
-VITE_API_BASE_URL=https://be.phongnguyen.software
+VITE_API_BASE_URL=https://be.vnchack.com
 VITE_API_TIMEOUT=10000
 VITE_APP_NAME=GymXFit Admin
 VITE_APP_VERSION=1.0.0
